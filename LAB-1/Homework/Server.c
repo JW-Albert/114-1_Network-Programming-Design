@@ -43,44 +43,44 @@ int main() {
     }
 
     while (1) {
-        // 從 client 接收資料
         readsize = recv(csock, buf, sizeof(buf)-1, 0);
-        if (readsize <= 0) { // 如果 client 關閉連線
+        if (readsize <= 0) {
             printf("Client has closed the connection.\n");
             close(sock);
             exit(0);
         }
 
-        buf[readsize] = '\0'; // 加上字串結尾符號
-
-        // 統計字母與數字數量
+        buf[readsize] = '\0';
+    
         int letters = 0, numbers = 0;
         for (int i = 0; buf[i]; i++) {
-            if (isalpha(buf[i])) letters++;
-            else if (isdigit(buf[i])) numbers++;
+            if (isalpha((unsigned char)buf[i])) letters++;
+            else if (isdigit((unsigned char)buf[i])) numbers++;
         }
-
-        // 處理字母：每個字母 +1
+    
         char letters_part[128] = "";
         char numbers_part[128] = "";
+    
         for (int i = 0; buf[i]; i++) {
-            if (isalpha(buf[i])) {
-                char c = buf[i] + 1;   // 英文字母往後移一位
-                if (c > 'Z') c = 'A'; // 若超過 Z 則回到 A
-                strncat(letters_part, &c, 1);
-                strncat(letters_part, " ", 1);
-            } else if (isdigit(buf[i])) {
-                strncat(numbers_part, &buf[i], 1);
-                strncat(numbers_part, " ", 1);
+            unsigned char ch = (unsigned char)buf[i];
+    
+            if (isalpha(ch)) {
+                char c = toupper(ch) + 1;   // 保險：先轉大寫再 +1
+                if (c > 'Z') c = 'A';       // Z 之後環回 A
+                size_t off = strlen(letters_part);
+                snprintf(letters_part + off, sizeof(letters_part) - off, "%c ", c);
+            } else if (isdigit(ch)) {
+                size_t off = strlen(numbers_part);
+                snprintf(numbers_part + off, sizeof(numbers_part) - off, "%c ", ch);
             }
         }
-
-        // 組合回傳訊息
+    
         char sendbuf[512];
-        sprintf(sendbuf, "letters: %d numbers: %d [%s] and [%s]",
-                letters, numbers, numbers_part, letters_part);
-
-        // 傳送結果給 client
+        snprintf(sendbuf, sizeof(sendbuf),
+                 "letters: %d numbers: %d [%s] and [%s]",
+                 letters, numbers, numbers_part, letters_part);
+    
         send(csock, sendbuf, strlen(sendbuf), 0);
     }
+
 }
