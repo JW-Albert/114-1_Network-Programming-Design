@@ -14,11 +14,14 @@ int main() {
 
     // 初始化 server 結構
     bzero(&server, sizeof(server));
-    server.sin_family = AF_INET;              // IPv4
-    server.sin_addr.s_addr = inet_addr("127.0.0.1"); // 本機 IP
-    server.sin_port = htons(5678);            // 使用 port 5678
+    // IPv4
+    server.sin_family = AF_INET;
+    // 伺服器 IP
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // 使用 port 5678
+    server.sin_port = htons(5678);
 
-    // 建立 TCP socket
+    // 建立 TCP socket ， 如果創建失敗就離開程式
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket creation failed");
