@@ -134,6 +134,6 @@ gcc -o client Client.c
 
 ---
 
-**最後更新 / Last Updated**: 2025年09月 / September 2025  
-**版本 / Version**: 1.0  
+**最後更新 / Last Updated**: 2025年09月 / September 2025
+**版本 / Version**: 1.0
 **授權 / License**: 僅供學習使用 / For Educational Use Only
