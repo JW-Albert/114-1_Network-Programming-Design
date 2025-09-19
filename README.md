@@ -128,7 +128,7 @@ gcc -o client Client.c
 
 ## 聯絡資訊 / Contact Information
 
-- **學生 / Student**: 王建葦
+- **學生 / Student**: 王建葦 Albert Wang
 - **學號 / Student ID**: D1210799
 - **Email**: albert@mail.jw-albert.tw
 
