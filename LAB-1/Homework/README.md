@@ -1,10 +1,12 @@
 # TCP Socket Programming Homework 1
 
 ## 學生資訊
+- **學校**: 逢甲大學 Feng Chia University
 - **班級**: 資訊三乙
 - **學號**: D1210799
 - **姓名**: 王建葦
 - **課程**: 網路程式設計
+- **授課教師**: 陳烈武
 
 ## 檔案內容
 1. README.md 純文字說明文件
