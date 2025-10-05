@@ -5,12 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <ctype.h>
-#include <sys/select.h> // for select()
-#include <time.h>
+#include <sys/select.h>
 
-#define True 1
-#define False 0
 #define BUFFER_SIZE 256
 
 int main(void) {
@@ -24,14 +20,12 @@ int main(void) {
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_port = htons(5678);
 
-    // 建立 TCP socket
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("socket creation failed");
         exit(1);
     }
 
-    // 綁定
     if (bind(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
         perror("bind failed");
         close(sock);
@@ -39,7 +33,7 @@ int main(void) {
     }
 
     listen(sock, 5);
-    printf("Server started on 127.0.0.1:5678 ...\n");
+    printf("Server started on 127.0.0.1:5678 ....\n");
 
     addresssize = sizeof(client);
     csock = accept(sock, (struct sockaddr*)&client, &addresssize);
@@ -51,41 +45,34 @@ int main(void) {
 
     printf("Client connected: %s\n", inet_ntoa(client.sin_addr));
 
-    while (True) {
+    while (1) {
         memset(A, 0, BUFFER_SIZE);
         memset(B, 0, BUFFER_SIZE);
         memset(ID, 0, BUFFER_SIZE);
         memset(sendbuf, 0, BUFFER_SIZE);
 
-        // ---- Step 1: 接收 A ----
+        // 收 A
         readsize = recv(csock, A, sizeof(A) - 1, 0);
-        if (readsize <= 0) {
-            printf("Client disconnected.\n");
-            break;
-        }
-        A[readsize - 1] = '\0'; // 去除換行符
+        if (readsize <= 0) break;
+        A[readsize] = '\0';
         int lenA = strlen(A);
 
-        // ---- Step 2: 接收 B ----
+        // 收 B
         readsize = recv(csock, B, sizeof(B) - 1, 0);
-        if (readsize <= 0) {
-            printf("Client disconnected.\n");
-            break;
-        }
-        B[readsize - 1] = '\0';
+        if (readsize <= 0) break;
+        B[readsize] = '\0';
         int lenB = strlen(B);
 
         printf("Received A=\"%s\" (%d), B=\"%s\" (%d)\n", A, lenA, B, lenB);
 
-        // ---- Step 3: 驗證 A/B 是否合法 ----
+        // 檢查字串 A, B
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             strcpy(sendbuf, "error");
             send(csock, sendbuf, strlen(sendbuf), 0);
-            printf("Invalid input -> sent 'error'\n");
             continue;
         }
 
-        // ---- Step 4: 使用 select() 等待 5 秒接收學號 ----
+        // 等待 5 秒學號
         fd_set readfds;
         struct timeval timeout;
         FD_ZERO(&readfds);
@@ -94,31 +81,23 @@ int main(void) {
         timeout.tv_usec = 0;
 
         int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
-        if (ret == -1) {
-            perror("select() error");
-            break;
-        } else if (ret == 0) {
-            // timeout
+        if (ret == 0) {
             strcpy(sendbuf, "Didn't receive student id");
             send(csock, sendbuf, strlen(sendbuf), 0);
-            printf("Timeout: didn't receive student id\n");
             continue;
         }
 
-        // ---- Step 5: 讀取學號 ----
+        // 收學號
         readsize = recv(csock, ID, sizeof(ID) - 1, 0);
-        if (readsize <= 0) {
-            printf("Client disconnected during ID recv.\n");
-            break;
-        }
-        ID[readsize - 1] = '\0';
+        if (readsize <= 0) break;
+        ID[readsize] = '\0';
 
-        // ---- Step 6: 回傳結果 ----
+        // 回傳字串
         snprintf(sendbuf, sizeof(sendbuf), "%s %s: [%s]", A, B, ID);
         send(csock, sendbuf, strlen(sendbuf), 0);
-        printf("Sent: %s\n", sendbuf);
     }
 
+    printf("Client disconnected.\n");
     close(csock);
     close(sock);
     return 0;
