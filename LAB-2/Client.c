@@ -46,24 +46,25 @@ int main(void) {
         if (B[lenB - 1] == '\n') B[lenB - 1] = '\0';
         lenB = strlen(B);
 
-        // 檢查字串合法性
+        // 檢查合法性
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             printf("error\n");
             continue;
         }
 
-        // 傳送 A, B
+        // 傳送 A、B（分開送，之間短暫延遲避免封包合併）
         send(sock, A, strlen(A), 0);
+        usleep(200000); // 0.2 秒
         send(sock, B, strlen(B), 0);
-
-        // 等 0.5 秒以確保 server select() 準備完成
-        usleep(500000);
+        usleep(200000); // 0.2 秒
 
         printf("Input Student ID: ");
         if (fgets(ID, sizeof(ID), stdin) == NULL) break;
         int lenID = strlen(ID);
         if (ID[lenID - 1] == '\n') ID[lenID - 1] = '\0';
 
+        // 傳送學號（與前封包間隔，避免 select() 判定不到）
+        usleep(200000); // 0.2 秒
         send(sock, ID, strlen(ID), 0);
 
         int readsize = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
