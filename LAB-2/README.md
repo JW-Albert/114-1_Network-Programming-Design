@@ -121,37 +121,342 @@ Received A="HELLO" (5), B="WORLD" (5)
 [等待5秒後]
 ```
 
-## 技術實作細節
+## 詳細程式碼解析
 
-### 伺服器端關鍵技術
-- **Socket程式設計**: 使用`socket()`, `bind()`, `listen()`, `accept()`
-- **非阻塞I/O**: 使用`select()`實現超時機制
-- **資料清理**: 使用`MSG_DONTWAIT`清理殘留資料
-- **記憶體管理**: 使用`memset()`確保buffer清空
+### 伺服器端程式碼 (server.c) 詳細解析
 
-### 客戶端關鍵技術
-- **Socket連線**: 使用`connect()`建立TCP連線
-- **輸入處理**: 使用`fgets()`安全讀取使用者輸入
-- **資料傳輸**: 使用`send()`和`recv()`進行網路通訊
-- **延遲控制**: 使用`usleep()`避免資料合併
-
-### 超時機制實作
+#### 1. 標頭檔與常數定義
 ```c
-// 伺服器端超時處理
-fd_set readfds;
-struct timeval timeout;
-FD_ZERO(&readfds);
-FD_SET(csock, &readfds);
-timeout.tv_sec = 5;
-timeout.tv_usec = 0;
+#include <sys/socket.h>    // Socket相關函數
+#include <netinet/in.h>   // 網路位址結構
+#include <arpa/inet.h>    // 網路位址轉換函數
+#include <unistd.h>       // 系統呼叫函數
+#include <stdio.h>        // 標準輸入輸出
+#include <string.h>       // 字串處理函數
+#include <stdlib.h>       // 標準函式庫
+#include <sys/select.h>   // Select函數
 
-int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
-if (ret == 0) {
-    // 超時處理
-    strcpy(sendbuf, "Didn't receive student id");
+#define BUFFER_SIZE 256   // 緩衝區大小定義
+```
+
+#### 2. 變數宣告與初始化
+```c
+struct sockaddr_in server, client;  // 伺服器和客戶端位址結構
+int sock, csock, readsize, addresssize;  // Socket描述符和相關變數
+char A[BUFFER_SIZE], B[BUFFER_SIZE], ID[BUFFER_SIZE], sendbuf[BUFFER_SIZE];  // 資料緩衝區
+
+// 初始化伺服器位址結構
+bzero(&server, sizeof(server));           // 清空記憶體
+server.sin_family = AF_INET;              // 設定為IPv4協定
+server.sin_addr.s_addr = inet_addr("127.0.0.1");  // 設定IP位址為本地迴環
+server.sin_port = htons(5678);            // 設定端口號5678，轉換為網路位元組順序
+```
+
+#### 3. Socket建立與綁定
+```c
+// 建立Socket
+sock = socket(AF_INET, SOCK_STREAM, 0);  // AF_INET: IPv4, SOCK_STREAM: TCP
+if (sock < 0) { 
+    perror("socket creation failed"); 
+    exit(1); 
+}
+
+// 綁定Socket到指定位址和端口
+if (bind(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+    perror("bind failed");
+    close(sock);
+    exit(1);
+}
+```
+
+#### 4. 監聽與接受連線
+```c
+listen(sock, 5);  // 開始監聽，最多5個等待連線
+printf("Server started on 127.0.0.1:5678 ....\n");
+
+// 接受客戶端連線
+addresssize = sizeof(client);
+csock = accept(sock, (struct sockaddr*)&client, &addresssize);
+if (csock < 0) { 
+    perror("accept failed"); 
+    close(sock); 
+    exit(1); 
+}
+
+printf("Client connected: %s\n", inet_ntoa(client.sin_addr));
+```
+
+#### 5. 主要處理迴圈 - 接收字串A和B
+```c
+while (1) {
+    // 清空所有緩衝區，確保資料乾淨
+    memset(A, 0, BUFFER_SIZE);
+    memset(B, 0, BUFFER_SIZE);
+    memset(ID, 0, BUFFER_SIZE);
+    memset(sendbuf, 0, BUFFER_SIZE);
+
+    // 接收字串A
+    readsize = recv(csock, A, sizeof(A) - 1, 0);  // 接收資料
+    if (readsize <= 0) break;  // 連線中斷或錯誤
+    A[readsize] = '\0';        // 確保字串結尾
+    int lenA = strlen(A);      // 計算字串長度
+
+    // 接收字串B
+    readsize = recv(csock, B, sizeof(B) - 1, 0);
+    if (readsize <= 0) break;
+    B[readsize] = '\0';
+    int lenB = strlen(B);
+
+    printf("Received A=\"%s\" (%d), B=\"%s\" (%d)\n", A, lenA, B, lenB);
+```
+
+#### 6. 輸入驗證邏輯
+```c
+    // 檢查字串A和B的合法性
+    if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
+        strcpy(sendbuf, "error");                    // 準備錯誤訊息
+        send(csock, sendbuf, strlen(sendbuf), 0);   // 發送錯誤訊息
+        continue;                                    // 跳過本次迴圈，等待下次輸入
+    }
+```
+
+#### 7. 超時機制實作 - 關鍵技術
+```c
+    // 清空Socket緩衝區中的殘留資料
+    fd_set readfds;
+    struct timeval timeout;
+    char tmpbuf[BUFFER_SIZE];
+    while (recv(csock, tmpbuf, sizeof(tmpbuf), MSG_DONTWAIT) > 0);  // 非阻塞接收，清空殘留資料
+
+    // 設定select()等待學號輸入，超時時間5秒
+    FD_ZERO(&readfds);        // 清空檔案描述符集合
+    FD_SET(csock, &readfds);  // 將客戶端Socket加入監聽集合
+    timeout.tv_sec = 5;       // 設定超時時間為5秒
+    timeout.tv_usec = 0;      // 微秒部分設為0
+
+    // 使用select()等待資料到達或超時
+    int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
+    
+    if (ret == 0) {
+        // select()回傳0表示超時，沒有收到任何資料
+        strcpy(sendbuf, "Didn't receive student id");
+        send(csock, sendbuf, strlen(sendbuf), 0);
+        continue;  // 跳過本次迴圈
+    }
+```
+
+#### 8. 接收學號並處理
+```c
+    // 接收學號
+    readsize = recv(csock, ID, sizeof(ID) - 1, 0);
+    if (readsize <= 0) break;
+    ID[readsize] = '\0';
+
+    // 檢查學號是否為空字串
+    if (strlen(ID) == 0) {
+        strcpy(sendbuf, "Didn't receive student id");
+        send(csock, sendbuf, strlen(sendbuf), 0);
+        continue;
+    }
+
+    // 格式化回應訊息並發送
+    snprintf(sendbuf, sizeof(sendbuf), "%s %s: [%s]", A, B, ID);
     send(csock, sendbuf, strlen(sendbuf), 0);
 }
 ```
+
+#### 9. 資源清理
+```c
+printf("Client disconnected.\n");
+close(csock);  // 關閉客戶端Socket
+close(sock);   // 關閉伺服器Socket
+return 0;
+```
+
+### 客戶端程式碼 (client.c) 詳細解析
+
+#### 1. 變數宣告與伺服器位址設定
+```c
+struct sockaddr_in server;  // 伺服器位址結構
+int sock;                   // Socket描述符
+char A[BUFFER_SIZE], B[BUFFER_SIZE], ID[BUFFER_SIZE], recvbuf[BUFFER_SIZE];  // 資料緩衝區
+
+// 設定伺服器位址
+bzero(&server, sizeof(server));
+server.sin_family = AF_INET;
+server.sin_addr.s_addr = inet_addr("127.0.0.1");  // 連接到本地伺服器
+server.sin_port = htons(5678);                     // 端口5678
+```
+
+#### 2. Socket建立與連線
+```c
+// 建立Socket
+sock = socket(AF_INET, SOCK_STREAM, 0);
+if (sock < 0) { 
+    perror("socket creation failed"); 
+    exit(1); 
+}
+
+// 連接到伺服器
+if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+    perror("connect failed");
+    close(sock);
+    exit(1);
+}
+
+printf("Connected to server 127.0.0.1:5678\n");
+```
+
+#### 3. 主要處理迴圈 - 使用者輸入處理
+```c
+while (1) {
+    // 輸入字串A
+    printf("Input A: ");
+    if (fgets(A, sizeof(A), stdin) == NULL) break;  // 讀取使用者輸入
+    int lenA = strlen(A);
+    if (A[lenA - 1] == '\n') A[lenA - 1] = '\0';   // 移除換行符號
+    lenA = strlen(A);                              // 重新計算長度
+
+    // 輸入字串B
+    printf("Input B: ");
+    if (fgets(B, sizeof(B), stdin) == NULL) break;
+    int lenB = strlen(B);
+    if (B[lenB - 1] == '\n') B[lenB - 1] = '\0';
+    lenB = strlen(B);
+```
+
+#### 4. 客戶端輸入驗證
+```c
+    // 在發送前先驗證輸入合法性
+    if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
+        printf("error\n");
+        continue;  // 輸入不合法，重新開始
+    }
+```
+
+#### 5. 資料傳輸策略
+```c
+    // 分別發送A和B，避免TCP合併
+    send(sock, A, strlen(A), 0);     // 發送字串A
+    usleep(300000);                  // 等待300毫秒，避免資料合併
+    send(sock, B, strlen(B), 0);     // 發送字串B
+    usleep(300000);                  // 再次等待
+```
+
+#### 6. 學號輸入與超時測試
+```c
+    // 輸入學號
+    printf("Input Student ID: ");
+    if (fgets(ID, sizeof(ID), stdin) == NULL) break;
+    int lenID = strlen(ID);
+    if (lenID > 0 && ID[lenID - 1] == '\n') ID[lenID - 1] = '\0';
+
+    // 處理學號輸入
+    if (strlen(ID) == 0) {
+        // 使用者直接按Enter，不發送任何資料
+        // 這會觸發伺服器的select()超時機制
+        sleep(6);  // 等待6秒，確保伺服器超時
+    } else {
+        // 有輸入學號，發送給伺服器
+        usleep(300000);
+        send(sock, ID, strlen(ID), 0);
+    }
+```
+
+#### 7. 接收伺服器回應
+```c
+    // 接收伺服器回應
+    int readsize = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+    if (readsize <= 0) break;  // 連線中斷
+    recvbuf[readsize] = '\0';  // 確保字串結尾
+    printf("%s\n", recvbuf);   // 顯示伺服器回應
+}
+```
+
+#### 8. 資源清理
+```c
+close(sock);  // 關閉Socket連線
+return 0;
+```
+
+### 關鍵技術深度解析
+
+#### 1. Select() 超時機制
+```c
+// 這是整個程式的核心技術
+fd_set readfds;           // 檔案描述符集合
+struct timeval timeout;   // 超時時間結構
+
+FD_ZERO(&readfds);        // 清空集合
+FD_SET(csock, &readfds); // 加入要監聽的Socket
+timeout.tv_sec = 5;       // 5秒超時
+timeout.tv_usec = 0;      // 0微秒
+
+// select()會阻塞等待，直到：
+// 1. 有資料可讀 (ret > 0)
+// 2. 超時 (ret == 0)
+// 3. 發生錯誤 (ret < 0)
+int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
+```
+
+#### 2. 資料清理技術
+```c
+// 使用非阻塞接收清空殘留資料
+char tmpbuf[BUFFER_SIZE];
+while (recv(csock, tmpbuf, sizeof(tmpbuf), MSG_DONTWAIT) > 0);
+// MSG_DONTWAIT: 非阻塞模式，立即回傳
+// 這個迴圈會持續讀取直到Socket緩衝區為空
+```
+
+#### 3. TCP資料分離技術
+```c
+// 客戶端使用延遲避免TCP合併
+send(sock, A, strlen(A), 0);
+usleep(300000);  // 300毫秒延遲
+send(sock, B, strlen(B), 0);
+usleep(300000);  // 再次延遲
+```
+
+#### 4. 記憶體管理
+```c
+// 每次迴圈開始時清空所有緩衝區
+memset(A, 0, BUFFER_SIZE);
+memset(B, 0, BUFFER_SIZE);
+memset(ID, 0, BUFFER_SIZE);
+memset(sendbuf, 0, BUFFER_SIZE);
+```
+
+### 程式執行流程圖
+
+```
+客戶端                    伺服器
+  |                        |
+  |-- connect() ---------->|-- accept()
+  |                        |
+  |<-- "Connected" --------|
+  |                        |
+  |-- send(A) ------------>|-- recv(A)
+  |                        |
+  |-- send(B) ------------>|-- recv(B)
+  |                        |
+  |                        |-- 驗證A,B合法性
+  |                        |
+  |                        |-- select()等待學號(5秒)
+  |                        |
+  |-- send(ID) ----------->|-- recv(ID) [如果select()成功]
+  |                        |
+  |<-- response -----------|-- send(response)
+  |                        |
+  |-- 顯示結果             |
+```
+
+### 錯誤處理機制
+
+1. **Socket建立失敗**: 使用`perror()`顯示錯誤並退出
+2. **連線失敗**: 關閉Socket並退出
+3. **接收失敗**: 檢查`recv()`回傳值，小於等於0時退出迴圈
+4. **輸入驗證**: 客戶端和伺服器都有驗證機制
+5. **超時處理**: 使用`select()`實現優雅的超時處理
 
 ## 系統需求
 
@@ -166,39 +471,3 @@ if (ret == 0) {
   - `string.h` - 字串處理
   - `stdlib.h` - 標準函式庫
   - `sys/select.h` - Select函數
-
-## 注意事項
-
-1. **端口使用**: 程式使用5678端口，請確保該端口未被其他程式佔用
-2. **防火牆設定**: 如遇到連線問題，請檢查防火牆設定
-3. **權限問題**: 在某些系統上可能需要管理員權限來綁定端口
-4. **編譯警告**: 編譯時可能出現一些警告，但不影響程式正常運行
-
-## 測試建議
-
-1. **基本功能測試**: 測試正常的字串組合和學號輸入
-2. **邊界值測試**: 測試字串A的長度邊界（5和10字元）
-3. **奇偶數測試**: 測試字串B的奇數和偶數長度
-4. **超時測試**: 測試不輸入學號的超時機制
-5. **錯誤處理測試**: 測試各種無效輸入的處理
-
-## 已知問題與限制
-
-1. **單一客戶端**: 目前只支援單一客戶端連線
-2. **字元編碼**: 僅支援ASCII字元
-3. **錯誤恢復**: 某些錯誤情況下程式會直接退出
-4. **資源清理**: 在異常情況下可能無法完全清理資源
-
-## 未來改進方向
-
-1. **多客戶端支援**: 使用多執行緒或非阻塞I/O支援多客戶端
-2. **日誌記錄**: 加入詳細的日誌記錄功能
-3. **配置檔案**: 支援透過配置檔案設定參數
-4. **錯誤處理**: 改善錯誤處理和恢復機制
-5. **效能優化**: 優化網路傳輸效能
-
-
----
-
-**最後更新**: 2025年1月
-**版本**: 1.0
