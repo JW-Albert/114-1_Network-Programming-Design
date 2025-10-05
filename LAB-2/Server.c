@@ -14,17 +14,13 @@ int main(void) {
     int sock, csock, readsize, addresssize;
     char A[BUFFER_SIZE], B[BUFFER_SIZE], ID[BUFFER_SIZE], sendbuf[BUFFER_SIZE];
 
-    // 初始化
     bzero(&server, sizeof(server));
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_port = htons(5678);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("socket creation failed");
-        exit(1);
-    }
+    if (sock < 0) { perror("socket creation failed"); exit(1); }
 
     if (bind(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
         perror("bind failed");
@@ -37,11 +33,7 @@ int main(void) {
 
     addresssize = sizeof(client);
     csock = accept(sock, (struct sockaddr*)&client, &addresssize);
-    if (csock < 0) {
-        perror("accept failed");
-        close(sock);
-        exit(1);
-    }
+    if (csock < 0) { perror("accept failed"); close(sock); exit(1); }
 
     printf("Client connected: %s\n", inet_ntoa(client.sin_addr));
 
@@ -51,13 +43,13 @@ int main(void) {
         memset(ID, 0, BUFFER_SIZE);
         memset(sendbuf, 0, BUFFER_SIZE);
 
-        // 收 A
+        // 接收 A
         readsize = recv(csock, A, sizeof(A) - 1, 0);
         if (readsize <= 0) break;
         A[readsize] = '\0';
         int lenA = strlen(A);
 
-        // 收 B
+        // 接收 B
         readsize = recv(csock, B, sizeof(B) - 1, 0);
         if (readsize <= 0) break;
         B[readsize] = '\0';
@@ -65,7 +57,7 @@ int main(void) {
 
         printf("Received A=\"%s\" (%d), B=\"%s\" (%d)\n", A, lenA, B, lenB);
 
-        // 檢查字串 A, B
+        // 檢查 A, B 合法性
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             strcpy(sendbuf, "error");
             send(csock, sendbuf, strlen(sendbuf), 0);
@@ -87,12 +79,19 @@ int main(void) {
             continue;
         }
 
-        // 收學號
+        // 真正接收學號
         readsize = recv(csock, ID, sizeof(ID) - 1, 0);
         if (readsize <= 0) break;
         ID[readsize] = '\0';
 
-        // 回傳字串
+        // 避免空字串或換行誤判（去掉 '\n'）
+        if (ID[0] == '\n' || ID[0] == '\0') {
+            strcpy(sendbuf, "Didn't receive student id");
+            send(csock, sendbuf, strlen(sendbuf), 0);
+            continue;
+        }
+
+        // 回傳結果
         snprintf(sendbuf, sizeof(sendbuf), "%s %s: [%s]", A, B, ID);
         send(csock, sendbuf, strlen(sendbuf), 0);
     }
