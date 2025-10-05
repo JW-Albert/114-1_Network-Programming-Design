@@ -43,13 +43,13 @@ int main(void) {
         memset(ID, 0, BUFFER_SIZE);
         memset(sendbuf, 0, BUFFER_SIZE);
 
-        // --- 接收 A ---
+        // 收 A
         readsize = recv(csock, A, sizeof(A) - 1, 0);
         if (readsize <= 0) break;
         A[readsize] = '\0';
         int lenA = strlen(A);
 
-        // --- 接收 B ---
+        // 收 B
         readsize = recv(csock, B, sizeof(B) - 1, 0);
         if (readsize <= 0) break;
         B[readsize] = '\0';
@@ -57,43 +57,43 @@ int main(void) {
 
         printf("Received A=\"%s\" (%d), B=\"%s\" (%d)\n", A, lenA, B, lenB);
 
-        // --- 檢查合法性 ---
+        // 檢查合法性
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             strcpy(sendbuf, "error");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // --- 等待 5 秒學號 ---
+        // 清空 buffer，確保 select() 正確等待
         fd_set readfds;
         struct timeval timeout;
+        char tmpbuf[BUFFER_SIZE];
+        while (recv(csock, tmpbuf, sizeof(tmpbuf), MSG_DONTWAIT) > 0);  // flush 殘留資料
+
+        // 等待 5 秒學號
         FD_ZERO(&readfds);
         FD_SET(csock, &readfds);
         timeout.tv_sec = 5;
         timeout.tv_usec = 0;
 
         int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
-
         if (ret == 0) {
-            // select 超時，沒收到任何新資料
             strcpy(sendbuf, "Didn't receive student id");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // --- 真正接收學號 ---
+        // 收學號
         readsize = recv(csock, ID, sizeof(ID) - 1, 0);
         if (readsize <= 0) break;
         ID[readsize] = '\0';
 
-        // --- 空字串防呆 ---
         if (strlen(ID) == 0) {
             strcpy(sendbuf, "Didn't receive student id");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // --- 回傳 ---
         snprintf(sendbuf, sizeof(sendbuf), "%s %s: [%s]", A, B, ID);
         send(csock, sendbuf, strlen(sendbuf), 0);
     }
