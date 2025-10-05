@@ -54,17 +54,17 @@ int main(void) {
 
         // 傳送 A、B（分開送，之間短暫延遲避免封包合併）
         send(sock, A, strlen(A), 0);
-        usleep(200000); // 0.2 秒
+        usleep(300000); // 原本 200000 -> 改成 300000 微秒 (0.3 秒)
         send(sock, B, strlen(B), 0);
-        usleep(200000); // 0.2 秒
+        usleep(300000); // 同樣改成 0.3 秒
 
         printf("Input Student ID: ");
         if (fgets(ID, sizeof(ID), stdin) == NULL) break;
         int lenID = strlen(ID);
         if (ID[lenID - 1] == '\n') ID[lenID - 1] = '\0';
 
-        // 傳送學號（與前封包間隔，避免 select() 判定不到）
-        usleep(200000); // 0.2 秒
+        // 傳送學號（保持獨立封包）
+        usleep(300000);
         send(sock, ID, strlen(ID), 0);
 
         int readsize = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
