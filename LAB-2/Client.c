@@ -62,7 +62,7 @@ int main(void) {
         // 若使用者直接按 Enter，代表不輸入學號
         if (strlen(ID) == 0) {
             // 不傳任何資料 → 觸發 server timeout
-            sleep(6); // 保證 server select() 超時
+            // 移除 sleep(6)，讓客戶端立即接收伺服器回應
         } else {
             usleep(300000);
             send(sock, ID, strlen(ID), 0);
