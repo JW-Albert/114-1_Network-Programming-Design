@@ -43,13 +43,13 @@ int main(void) {
         memset(ID, 0, BUFFER_SIZE);
         memset(sendbuf, 0, BUFFER_SIZE);
 
-        // 接收 A
+        // --- 接收 A ---
         readsize = recv(csock, A, sizeof(A) - 1, 0);
         if (readsize <= 0) break;
         A[readsize] = '\0';
         int lenA = strlen(A);
 
-        // 接收 B
+        // --- 接收 B ---
         readsize = recv(csock, B, sizeof(B) - 1, 0);
         if (readsize <= 0) break;
         B[readsize] = '\0';
@@ -57,14 +57,14 @@ int main(void) {
 
         printf("Received A=\"%s\" (%d), B=\"%s\" (%d)\n", A, lenA, B, lenB);
 
-        // 檢查 A, B 合法性
+        // --- 檢查合法性 ---
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             strcpy(sendbuf, "error");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // 等待 5 秒學號
+        // --- 等待 5 秒學號 ---
         fd_set readfds;
         struct timeval timeout;
         FD_ZERO(&readfds);
@@ -73,25 +73,27 @@ int main(void) {
         timeout.tv_usec = 0;
 
         int ret = select(csock + 1, &readfds, NULL, NULL, &timeout);
+
         if (ret == 0) {
+            // select 超時，沒收到任何新資料
             strcpy(sendbuf, "Didn't receive student id");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // 真正接收學號
+        // --- 真正接收學號 ---
         readsize = recv(csock, ID, sizeof(ID) - 1, 0);
         if (readsize <= 0) break;
         ID[readsize] = '\0';
 
-        // 避免空字串或換行誤判（去掉 '\n'）
-        if (ID[0] == '\n' || ID[0] == '\0') {
+        // --- 空字串防呆 ---
+        if (strlen(ID) == 0) {
             strcpy(sendbuf, "Didn't receive student id");
             send(csock, sendbuf, strlen(sendbuf), 0);
             continue;
         }
 
-        // 回傳結果
+        // --- 回傳 ---
         snprintf(sendbuf, sizeof(sendbuf), "%s %s: [%s]", A, B, ID);
         send(csock, sendbuf, strlen(sendbuf), 0);
     }

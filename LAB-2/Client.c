@@ -20,10 +20,7 @@ int main(void) {
     server.sin_port = htons(5678);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("socket creation failed");
-        exit(1);
-    }
+    if (sock < 0) { perror("socket creation failed"); exit(1); }
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
         perror("connect failed");
@@ -46,26 +43,30 @@ int main(void) {
         if (B[lenB - 1] == '\n') B[lenB - 1] = '\0';
         lenB = strlen(B);
 
-        // 檢查合法性
         if (lenA < 5 || lenA > 10 || lenB % 2 != 0) {
             printf("error\n");
             continue;
         }
 
-        // 傳送 A、B（分開送，之間短暫延遲避免封包合併）
+        // 傳送 A, B，分開送以避免合併
         send(sock, A, strlen(A), 0);
-        usleep(300000); // 原本 200000 -> 改成 300000 微秒 (0.3 秒)
+        usleep(300000);
         send(sock, B, strlen(B), 0);
-        usleep(300000); // 同樣改成 0.3 秒
+        usleep(300000);
 
         printf("Input Student ID: ");
         if (fgets(ID, sizeof(ID), stdin) == NULL) break;
         int lenID = strlen(ID);
-        if (ID[lenID - 1] == '\n') ID[lenID - 1] = '\0';
+        if (lenID > 0 && ID[lenID - 1] == '\n') ID[lenID - 1] = '\0';
 
-        // 傳送學號（保持獨立封包）
-        usleep(300000);
-        send(sock, ID, strlen(ID), 0);
+        // 若使用者直接按 Enter，代表不輸入學號
+        if (strlen(ID) == 0) {
+            // 不傳任何資料 → 觸發 server timeout
+            sleep(6); // 保證 server select() 超時
+        } else {
+            usleep(300000);
+            send(sock, ID, strlen(ID), 0);
+        }
 
         int readsize = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
         if (readsize <= 0) break;
