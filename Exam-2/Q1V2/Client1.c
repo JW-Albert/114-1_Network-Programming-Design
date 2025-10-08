@@ -3,12 +3,33 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 5678
 #define BUFFER_SIZE 256
 
+int sock;
+
+// 接收 Server 訊息的執行緒
+void *receive_messages(void *arg) {
+    char buffer[BUFFER_SIZE];
+    while (1) {
+        memset(buffer, 0, sizeof(buffer));
+        int read_size = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (read_size <= 0) {
+            printf("\nServer disconnected.\n");
+            close(sock);
+            exit(0);
+        }
+        buffer[read_size] = '\0';
+        printf("\n[Server]: %s\n", buffer);
+        printf("[You]: ");
+        fflush(stdout);
+    }
+    return NULL;
+}
+
 int main() {
-    int sock;
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
     char student_id[50], account[50], password[50];
@@ -17,7 +38,7 @@ int main() {
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
-        perror("Socket creation failed");
+        perror("socket");
         exit(1);
     }
 
@@ -26,14 +47,14 @@ int main() {
     server_addr.sin_port = htons(PORT);
 
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connect failed");
+        perror("connect");
         close(sock);
         exit(1);
     }
 
     printf("Connected to server.\n");
 
-    // === 註冊階段 ===
+    // ===== 註冊階段 =====
     printf("=== Registration ===\n");
     printf("Enter student ID: ");
     fgets(student_id, sizeof(student_id), stdin);
@@ -55,10 +76,11 @@ int main() {
     send(sock, account, strlen(account), 0);
     send(sock, password, strlen(password), 0);
 
+    memset(buffer, 0, sizeof(buffer));
     recv(sock, buffer, sizeof(buffer), 0);
     printf("Server: %s\n", buffer);
 
-    // === 登入階段 ===
+    // ===== 登入階段 =====
     printf("\n=== Login ===\n");
     printf("Enter account: ");
     fgets(input_account, sizeof(input_account), stdin);
@@ -80,21 +102,17 @@ int main() {
         return 0;
     }
 
+    // ===== 聊天階段 =====
+    pthread_t recv_thread;
+    pthread_create(&recv_thread, NULL, receive_messages, NULL);
+
     printf("\n=== Chatting Mode ===\n");
     while (1) {
-        printf("[You]: ");
-        fgets(msg, sizeof(msg), stdin);
+        memset(msg, 0, sizeof(msg));
+        if (fgets(msg, sizeof(msg), stdin) == NULL) break;
         msg[strcspn(msg, "\n")] = '\0';
+        if (strlen(msg) == 0) continue;
         send(sock, msg, strlen(msg), 0);
-
-        memset(buffer, 0, sizeof(buffer));
-        int read_size = recv(sock, buffer, sizeof(buffer) - 1, 0);
-        if (read_size <= 0) {
-            printf("Server closed.\n");
-            break;
-        }
-        buffer[read_size] = '\0';
-        printf("[Server]: %s\n", buffer);
     }
 
     close(sock);
