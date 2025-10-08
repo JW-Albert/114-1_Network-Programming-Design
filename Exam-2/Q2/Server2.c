@@ -90,6 +90,8 @@ void login_phase(int client_fd) {
     char user[BUFFER_SIZE], pass[BUFFER_SIZE];
     time_t now;
 
+    send(client_fd, "Please login.\n", 14, 0);
+
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
         recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
