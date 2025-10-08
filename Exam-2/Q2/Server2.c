@@ -29,6 +29,16 @@ int find_idx(const char *u)
     return -1;
 }
 
+int find_student_id(const char *sid)
+{
+    for (int i = 0; i < acc_count; i++)
+    {
+        if (strcmp(accounts[i].studentID, sid) == 0)
+            return i;
+    }
+    return -1;
+}
+
 void register_account(int cfd, char *cmd)
 {
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pw[BUFFER_SIZE];
@@ -40,9 +50,26 @@ void register_account(int cfd, char *cmd)
     }
     sscanf(data, "%[^|]|%[^|]|%s", sid, user, pw);
 
+    // 檢查帳號總數限制
     if (acc_count >= MAX_ACCOUNTS)
     {
         char msg[] = "SERVER_FULL";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+
+    // 檢查學號是否重複
+    if (find_student_id(sid) >= 0)
+    {
+        char msg[] = "STUDENT_ID_EXISTS";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+
+    // 檢查用戶名是否重複
+    if (find_idx(user) >= 0)
+    {
+        char msg[] = "USERNAME_EXISTS";
         send(cfd, msg, strlen(msg), 0);
         return;
     }
