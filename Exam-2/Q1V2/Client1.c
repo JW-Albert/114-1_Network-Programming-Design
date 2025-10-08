@@ -23,22 +23,19 @@ int main() {
     printf("Enter Student ID: ");
     fgets(studentID, sizeof(studentID), stdin);
     studentID[strcspn(studentID, "\n")] = 0;
-    send(sock, studentID, strlen(studentID), 0);
-    usleep(300000);
 
     printf("Create Username: ");
     fgets(username, sizeof(username), stdin);
     username[strcspn(username, "\n")] = 0;
-    send(sock, username, strlen(username), 0);
-    usleep(300000);
 
     do {
         printf("Create Password (6-15 chars): ");
         fgets(password, sizeof(password), stdin);
         password[strcspn(password, "\n")] = 0;
     } while (strlen(password) < 6 || strlen(password) > 15);
-    send(sock, password, strlen(password), 0);
-    usleep(300000);
+
+    snprintf(sendbuf, sizeof(sendbuf), "%s|%s|%s", studentID, username, password);
+    send(sock, sendbuf, strlen(sendbuf), 0);
     printf("Registration complete.\n");
 
     memset(recvbuf, 0, sizeof(recvbuf));
@@ -48,12 +45,13 @@ int main() {
     printf("Login Username: ");
     fgets(login_user, sizeof(login_user), stdin);
     login_user[strcspn(login_user, "\n")] = 0;
-    send(sock, login_user, strlen(login_user), 0);
 
     printf("Login Password: ");
     fgets(login_pass, sizeof(login_pass), stdin);
     login_pass[strcspn(login_pass, "\n")] = 0;
-    send(sock, login_pass, strlen(login_pass), 0);
+
+    snprintf(sendbuf, sizeof(sendbuf), "%s|%s", login_user, login_pass);
+    send(sock, sendbuf, strlen(sendbuf), 0);
 
     memset(recvbuf, 0, sizeof(recvbuf));
     int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
