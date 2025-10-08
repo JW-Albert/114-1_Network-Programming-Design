@@ -20,11 +20,14 @@ int acc_count = 0;
 
 int check_new_password_format(char *pw) {
     int len = strlen(pw);
-    if (len < 12 || len > 20) return 0;
+    if (len < 12 || len > 20)
+        return 0;
     int upper = 0, lower = 0;
     for (int i = 0; i < len; i++) {
-        if (pw[i] >= 'A' && pw[i] <= 'Z') upper = 1;
-        if (pw[i] >= 'a' && pw[i] <= 'z') lower = 1;
+        if (pw[i] >= 'A' && pw[i] <= 'Z')
+            upper = 1;
+        if (pw[i] >= 'a' && pw[i] <= 'z')
+            lower = 1;
     }
     return upper && lower;
 }
@@ -42,17 +45,21 @@ void register_account(int client_fd, int send_login_prompt) {
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID: ", 19, 0);
+    char msg[] = "Enter Student ID: ";
+    send(client_fd, msg, strlen(msg), 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
 
-    send(client_fd, "Enter Username: ", 17, 0);
+    char msg[] = "Enter Username: ";
+    send(client_fd, msg, strlen(msg), 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
 
     while (1) {
-        send(client_fd, "Enter Password (6–15 chars): ", 30, 0);
+        char msg[] = "Enter Password (6–15 chars): ";
+        send(client_fd, msg, strlen(msg), 0);
         recv(client_fd, pass, sizeof(pass) - 1, 0);
         if (strlen(pass) < 6 || strlen(pass) > 15) {
-            send(client_fd, "Invalid password length, please try again.\n", 43, 0);
+            char msg[] = "Invalid password length, please try again.\n";
+            send(client_fd, msg, strlen(msg), 0);
             continue;
         }
         break;
@@ -77,7 +84,6 @@ void register_account(int client_fd, int send_login_prompt) {
     if (send_login_prompt)
         send(client_fd, "Please login.\n", 14, 0);
 }
-
 
 void login_phase(int client_fd) {
     char recvbuf[BUFFER_SIZE];
@@ -115,13 +121,15 @@ void login_phase(int client_fd) {
     }
 }
 
-void handle_options(int client_fd) {
+void handle_options(int client_fd)
+{
     char recvbuf[BUFFER_SIZE];
     while (1) {
         send(client_fd, "\nSelect option:\n1. Register new account\n2. Change password\n3. Exit\n", 70, 0);
         memset(recvbuf, 0, sizeof(recvbuf));
         int len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
-        if (len <= 0) break;
+        if (len <= 0)
+            break;
 
         if (recvbuf[0] == '1') {
             register_account(client_fd, 0);
@@ -140,8 +148,8 @@ void handle_options(int client_fd) {
                 send(client_fd, "Enter new password (12–20 chars, upper & lower required): ", 61, 0);
                 memset(newpw, 0, sizeof(newpw));
                 recv(client_fd, newpw, sizeof(newpw) - 1, 0);
-                if (!check_new_password_format(newpw)) {
-                    send(client_fd, "Invalid password format, please try again.\n", 43, 0);
+                if (!check_new_password_format(newpw))
+                {
                     send(client_fd, "Please enter the new password again.\n", 37, 0);
                     continue;
                 }
@@ -149,7 +157,9 @@ void handle_options(int client_fd) {
             }
             strcpy(accounts[idx].password, newpw);
             send(client_fd, "Password changed successfully.\n", 32, 0);
-        } else if (recvbuf[0] == '3') break;
+        }
+        else if (recvbuf[0] == '3')
+            break;
     }
 }
 
@@ -162,12 +172,13 @@ int main() {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(5678);
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     listen(server_fd, 1);
     printf("Server started on 127.0.0.1:5678 ...\n");
 
-    while (1) {
-        client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+    while (1)
+    {
+        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
         printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
         register_account(client_fd, 1);
         login_phase(client_fd);
