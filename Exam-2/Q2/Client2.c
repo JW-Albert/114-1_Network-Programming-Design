@@ -106,7 +106,7 @@ int main(){
 
         if(strstr(recvbuf, "WRONG_ID")){
             printf("Wrong ID. Wait 5 seconds.\n");
-            sleep(5);
+            sleep(10);
         }
         else if(strstr(recvbuf, "LOCKED")){
             printf("Account locked. Try later.\n");
@@ -114,7 +114,7 @@ int main(){
         }
         else if(strstr(recvbuf, "WRONG_PW")){
             printf("Wrong password. Wait 5 seconds.\n");
-            sleep(5);
+            sleep(10);
         }
         else if(strstr(recvbuf, "LOGIN_OK")){
             printf("Login success!\n");
