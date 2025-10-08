@@ -72,7 +72,7 @@ int main()
             r = select(1, &fds, NULL, NULL, &tv);
             if (r > 0)
             {
-                scanf(" %c", &operator);
+                scanf("%c", &operator);
                 getchar();
             }
             else

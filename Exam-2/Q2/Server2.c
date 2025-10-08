@@ -70,8 +70,6 @@ void login_phase(int cfd, char *cmd)
         data = cmd + 6; // 跳過 "LOGIN "
     }
     sscanf(data, "%[^|]|%s", u, p);
-    trim(u);
-    trim(p);
 
     int idx = find_idx(u);
     time_t now = time(NULL);
