@@ -2,4 +2,5 @@
 
 ./compile.sh
 clear
-./server
+
+./server_exec
