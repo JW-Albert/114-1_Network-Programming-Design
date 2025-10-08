@@ -7,159 +7,173 @@
 
 #define BUFFER_SIZE 256
 
-int has_upper(const char* s){for(int i=0;s[i];i++) if(s[i]>='A'&&s[i]<='Z') return 1; return 0;}
-int has_lower(const char* s){for(int i=0;s[i];i++) if(s[i]>='a'&&s[i]<='z') return 1; return 0;}
+int has_upper(const char* s){
+    for(int i = 0; s[i]; i++)
+        if(s[i] >= 'A' && s[i] <= 'Z')
+            return 1;
+    return 0;
+}
+
+int has_lower(const char* s){
+    for(int i = 0; s[i]; i++)
+        if(s[i] >= 'a' && s[i] <= 'z')
+            return 1;
+    return 0;
+}
 
 int main(){
-    int sock; struct sockaddr_in server;
-    char in[BUFFER_SIZE], sendbuf[BUFFER_SIZE], recvbuf[BUFFER_SIZE];
-    char sid[BUFFER_SIZE], user[BUFFER_SIZE], pw[BUFFER_SIZE];
-    sock=socket(AF_INET,SOCK_STREAM,0);
-    server.sin_family=AF_INET; server.sin_port=htons(5678); 
-    server.sin_addr.s_addr=inet_addr("127.0.0.1");
-    connect(sock,(struct sockaddr*)&server,sizeof(server));
+    int sock;
+    struct sockaddr_in server;
+    char recvbuf[BUFFER_SIZE];
+    char sid[BUFFER_SIZE];
+    char user[BUFFER_SIZE];
+    char pw[BUFFER_SIZE];
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(5678);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    connect(sock, (struct sockaddr*)&server, sizeof(server));
     printf("Connected to server.\n");
 
-    memset(recvbuf,0,sizeof(recvbuf)); 
-    recv(sock,recvbuf,sizeof(recvbuf)-1,0); printf("%s",recvbuf);
-    printf(""); fgets(sid,sizeof(sid),stdin); 
-    sid[strcspn(sid,"\n")]=0; send(sock,sid,strlen(sid),0);
+    // === 註冊階段 ===
+    printf("=== Register New Account ===\n");
+    printf("Enter Student ID: ");
+    fgets(sid, sizeof(sid), stdin);
+    sid[strcspn(sid, "\n")] = 0;
 
-    memset(recvbuf,0,sizeof(recvbuf)); 
-    recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-    printf("%s",recvbuf);
-    printf(""); fgets(user,sizeof(user),stdin); 
-    user[strcspn(user,"\n")]=0; 
-    send(sock,user,strlen(user),0);
+    printf("Enter Username: ");
+    fgets(user, sizeof(user), stdin);
+    user[strcspn(user, "\n")] = 0;
 
-    while(1) {
-        memset(recvbuf,0,sizeof(recvbuf)); 
-        recv(sock,recvbuf,sizeof(recvbuf)-1,0); 
-        printf("%s",recvbuf);
-        fgets(pw,sizeof(pw),stdin); pw[strcspn(pw,"\n")]=0;
-        if(strlen(pw)>=6 && strlen(pw)<=15) {
+    while(1){
+        printf("Enter Password (6-15 chars): ");
+        fgets(pw, sizeof(pw), stdin);
+        pw[strcspn(pw, "\n")] = 0;
+        if(strlen(pw) >= 6 && strlen(pw) <= 15)
             break;
-        }
-        printf("Invalid password length, please try again.\n");
+        printf("Invalid length. Please try again.\n");
     }
-    send(sock,pw,strlen(pw),0);
 
-    memset(recvbuf,0,sizeof(recvbuf));
-    recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-    printf("%s",recvbuf);
-    memset(recvbuf,0,sizeof(recvbuf));
-    recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-    printf("%s",recvbuf);
+    char regbuf[BUFFER_SIZE];
+    snprintf(regbuf, sizeof(regbuf), "REGISTER %s|%s|%s", sid, user, pw);
+    send(sock, regbuf, strlen(regbuf), 0);
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
 
-    while(1) {
-        char lu[BUFFER_SIZE], lp[BUFFER_SIZE];
-        printf("Login Username: ");
-        fgets(lu,sizeof(lu),stdin);
-        lu[strcspn(lu,"\n")]=0;
-        printf("Login Password (5s timeout): ");
+    if(strstr(recvbuf, "REGISTER_OK"))
+        printf("註冊成功！\n");
+    else{
+        printf("Server full. Exit.\n");
+        close(sock);
+        return 0;
+    }
+
+    // === 登入階段 ===
+    while(1){
+        printf("\n=== Login ===\n");
+        printf("Username: ");
+        fgets(user, sizeof(user), stdin);
+        user[strcspn(user, "\n")] = 0;
+
+        printf("Password (5s timeout): ");
         fflush(stdout);
+
         fd_set fds;
         struct timeval tv;
         FD_ZERO(&fds);
-        FD_SET(0,&fds);
-        tv.tv_sec=5;
-        tv.tv_usec=0;
-        int r=select(1,&fds,NULL,NULL,&tv);
-        if(r<=0){ 
-            printf("\nTimeout! Please wait 10 seconds before retry.\n"); sleep(10);
+        FD_SET(0, &fds);
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+
+        int r = select(1, &fds, NULL, NULL, &tv);
+        if(r <= 0){
+            printf("\nTimeout! Wait 10 seconds.\n");
+            sleep(10);
             continue;
         }
-        fgets(lp,sizeof(lp),stdin);
-        lp[strcspn(lp,"\n")]=0;
-        snprintf(sendbuf,sizeof(sendbuf),"%s|%s",lu,lp);
-        send(sock,sendbuf,strlen(sendbuf),0);
-        memset(recvbuf,0,sizeof(recvbuf));
-        int n=recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-        if(n<=0) {
-            return 0;
+
+        fgets(pw, sizeof(pw), stdin);
+        pw[strcspn(pw, "\n")] = 0;
+
+        char logbuf[BUFFER_SIZE];
+        snprintf(logbuf, sizeof(logbuf), "LOGIN %s|%s", user, pw);
+        send(sock, logbuf, strlen(logbuf), 0);
+
+        memset(recvbuf, 0, sizeof(recvbuf));
+        recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+
+        if(strstr(recvbuf, "WRONG_ID")){
+            printf("Wrong ID. Wait 5 seconds.\n");
+            sleep(5);
         }
-        printf("%s",recvbuf);
-        if(strstr(recvbuf,"success")) {
+        else if(strstr(recvbuf, "LOCKED")){
+            printf("Account locked. Try later.\n");
+            sleep(10);
+        }
+        else if(strstr(recvbuf, "WRONG_PW")){
+            printf("Wrong password. Wait 5 seconds.\n");
+            sleep(5);
+        }
+        else if(strstr(recvbuf, "LOGIN_OK")){
+            printf("Login success!\n");
             break;
         }
     }
 
+    // === 主選單 ===
     while(1){
-        memset(recvbuf,0,sizeof(recvbuf));
-        int n=recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-        if(n<=0) {
+        printf("\n1. Register new account\n2. Change password\n3. Exit\n");
+        printf("Select: ");
+        char opt[8];
+        fgets(opt, sizeof(opt), stdin);
+        opt[strcspn(opt, "\n")] = 0;
+
+        if(opt[0] == '1'){
+            printf("Enter Student ID: ");
+            fgets(sid, sizeof(sid), stdin);
+            sid[strcspn(sid, "\n")] = 0;
+            printf("Enter Username: ");
+            fgets(user, sizeof(user), stdin);
+            user[strcspn(user, "\n")] = 0;
+            while(1){
+                printf("Enter Password (6-15): ");
+                fgets(pw, sizeof(pw), stdin);
+                pw[strcspn(pw, "\n")] = 0;
+                if(strlen(pw) >= 6 && strlen(pw) <= 15)
+                    break;
+                printf("Invalid length.\n");
+            }
+            char buf[BUFFER_SIZE];
+            snprintf(buf, sizeof(buf), "REGISTER %s|%s|%s", sid, user, pw);
+            send(sock, buf, strlen(buf), 0);
+            recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            printf("%s\n", recvbuf);
+        }
+        else if(opt[0] == '2'){
+            char newpw[BUFFER_SIZE];
+            while(1){
+                printf("Enter new password (12-20, upper & lower): ");
+                fgets(newpw, sizeof(newpw), stdin);
+                newpw[strcspn(newpw, "\n")] = 0;
+                if(strlen(newpw) >= 12 && strlen(newpw) <= 20 && has_upper(newpw) && has_lower(newpw))
+                    break;
+                printf("Invalid format.\n");
+            }
+            char buf[BUFFER_SIZE];
+            snprintf(buf, sizeof(buf), "CHPASS %s|%s", user, newpw);
+            send(sock, buf, strlen(buf), 0);
+            recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            printf("%s\n", recvbuf);
+        }
+        else if(opt[0] == '3'){
+            char msg[] = "EXIT";
+            send(sock, msg, strlen(msg), 0);
             break;
         }
-        printf("%s",recvbuf);
-        if(strstr(recvbuf,"Select option:")==recvbuf) {
-            char opt[8]; fgets(opt,sizeof(opt),stdin);
-            opt[strcspn(opt,"\n")]=0;
-            send(sock,opt,strlen(opt),0);
-            if(opt[0]=='1') {
-                memset(recvbuf,0,sizeof(recvbuf));
-                recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                printf("%s",recvbuf);
-                char nsid[BUFFER_SIZE];
-                fgets(nsid,sizeof(nsid),stdin);
-                nsid[strcspn(nsid,"\n")]=0;
-                send(sock,nsid,strlen(nsid),0);
-                memset(recvbuf,0,sizeof(recvbuf));
-                recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                printf("%s",recvbuf);
-                char nuser[BUFFER_SIZE];
-                fgets(nuser,sizeof(nuser),stdin);
-                nuser[strcspn(nuser,"\n")]=0;
-                send(sock,nuser,strlen(nuser),0);
-                while(1) {
-                    memset(recvbuf,0,sizeof(recvbuf));
-                    recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                    printf("%s",recvbuf);
-                    char npw[BUFFER_SIZE];
-                    fgets(npw,sizeof(npw),stdin);
-                    npw[strcspn(npw,"\n")]=0;
-                    if(strlen(npw)>=6 && strlen(npw)<=15){
-                        send(sock,npw,strlen(npw),0);
-                        break;
-                    }
-                    printf("Invalid password length, please try again.\n");
-                }
-                memset(recvbuf,0,sizeof(recvbuf));
-                n=recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                if(n>0) {
-                    printf("%s",recvbuf);
-                }
-            }else if(opt[0]=='2') {
-                memset(recvbuf,0,sizeof(recvbuf));
-                recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                printf("%s",recvbuf);
-                char who[BUFFER_SIZE];
-                fgets(who,sizeof(who),stdin);
-                who[strcspn(who,"\n")]=0;
-                send(sock,who,strlen(who),0);
-                while(1) {
-                    memset(recvbuf,0,sizeof(recvbuf));
-                    recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                    printf("%s",recvbuf);
-                    char npw[BUFFER_SIZE];
-                    fgets(npw,sizeof(npw),stdin);
-                    npw[strcspn(npw,"\n")]=0;
-                    int ok = (strlen(npw)>=12 && strlen(npw)<=20 && has_upper(npw) && has_lower(npw));
-                    if(ok) {
-                        send(sock,npw,strlen(npw),0);
-                        break;
-                    }
-                    printf("Please enter the new password again.\n");
-                }
-                memset(recvbuf,0,sizeof(recvbuf));
-                n=recv(sock,recvbuf,sizeof(recvbuf)-1,0);
-                if(n>0) {
-                    printf("%s",recvbuf);
-                }
-            }else if(opt[0]=='3') {
-                break;
-            }
-        }
     }
+
     close(sock);
     return 0;
 }

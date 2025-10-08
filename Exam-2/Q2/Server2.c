@@ -6,7 +6,7 @@
 #include <time.h>
 
 #define BUFFER_SIZE 256
-#define MAX_ACCOUNTS 3
+#define MAX_ACCOUNTS 10
 
 typedef struct {
     char studentID[BUFFER_SIZE];
@@ -25,76 +25,42 @@ void trim(char *s){
 }
 
 int find_idx(const char* u){
-    for(int i = 0; i < acc_count; i++)
+    for(int i = 0; i < acc_count; i++){
         if(strcmp(accounts[i].username, u) == 0)
             return i;
+    }
     return -1;
 }
 
-int check_new_pw(const char* p){
-    int n = strlen(p);
-    if(n < 12 || n > 20)
-        return 0;
-    int U = 0, L = 0;
-    for(int i = 0; i < n; i++){
-        if(p[i] >= 'A' && p[i] <= 'Z')
-            U = 1;
-        if(p[i] >= 'a' && p[i] <= 'z')
-            L = 1;
-    }
-    return U && L;
-}
+void register_account(int cfd){
+    char buf[BUFFER_SIZE] = {0};
+    recv(cfd, buf, sizeof(buf) - 1, 0);
+    trim(buf);
 
-void register_account(int cfd, int send_login_prompt){
-    char sid[BUFFER_SIZE] = {0};
-    char user[BUFFER_SIZE] = {0};
-    char pass[BUFFER_SIZE] = {0};
-
-    char msg1[] = "Enter Student ID: ";
-    send(cfd, msg1, strlen(msg1), 0);
-    recv(cfd, sid, sizeof(sid) - 1, 0);
-    trim(sid);
-
-    char msg2[] = "Enter Username: ";
-    send(cfd, msg2, strlen(msg2), 0);
-    recv(cfd, user, sizeof(user) - 1, 0);
-    trim(user);
-
-    char msg3[] = "Enter Password (6-15 chars): ";
-    send(cfd, msg3, strlen(msg3), 0);
-    recv(cfd, pass, sizeof(pass) - 1, 0);
-    trim(pass);
+    char sid[BUFFER_SIZE], user[BUFFER_SIZE], pw[BUFFER_SIZE];
+    sscanf(buf, "%[^|]|%[^|]|%s", sid, user, pw);
 
     if(acc_count >= MAX_ACCOUNTS){
-        char msgfull[] = "Server full, cannot register new accounts.\n";
-        send(cfd, msgfull, strlen(msgfull), 0);
+        char msg[] = "SERVER_FULL";
+        send(cfd, msg, strlen(msg), 0);
         return;
     }
 
     strcpy(accounts[acc_count].studentID, sid);
     strcpy(accounts[acc_count].username, user);
-    strcpy(accounts[acc_count].password, pass);
+    strcpy(accounts[acc_count].password, pw);
     accounts[acc_count].locked_until = 0;
     acc_count++;
 
-    char ok[BUFFER_SIZE];
-    snprintf(ok, sizeof(ok), "註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", sid, user, pass);
-    send(cfd, ok, strlen(ok), 0);
-    printf("%s", ok);
-
-    if(send_login_prompt){
-        char msglogin[] = "Please login\n";
-        send(cfd, msglogin, strlen(msglogin), 0);
-    }
+    char msg[] = "REGISTER_OK";
+    send(cfd, msg, strlen(msg), 0);
+    printf("註冊成功: %s %s %s\n", sid, user, pw);
 }
 
 void login_phase(int cfd){
-    char msghi[] = "Please login\n";
-    send(cfd, msghi, strlen(msghi), 0);
-
-    char buf[BUFFER_SIZE] = {0};
-    char u[BUFFER_SIZE] = {0};
-    char p[BUFFER_SIZE] = {0};
+    char buf[BUFFER_SIZE];
+    char u[BUFFER_SIZE];
+    char p[BUFFER_SIZE];
 
     while(1){
         memset(buf, 0, sizeof(buf));
@@ -102,14 +68,7 @@ void login_phase(int cfd){
         if(n <= 0)
             return;
 
-        char* t = strtok(buf, "|");
-        if(t)
-            strcpy(u, t);
-
-        t = strtok(NULL, "|");
-        if(t)
-            strcpy(p, t);
-
+        sscanf(buf, "%[^|]|%s", u, p);
         trim(u);
         trim(p);
 
@@ -117,92 +76,54 @@ void login_phase(int cfd){
         time_t now = time(NULL);
 
         if(idx < 0){
-            char m[] = "Wrong ID!!! Wait 5 seconds.\n";
-            send(cfd, m, strlen(m), 0);
-            sleep(5);
+            char msg[] = "WRONG_ID";
+            send(cfd, msg, strlen(msg), 0);
             continue;
         }
 
         if(now < accounts[idx].locked_until){
-            char m[] = "Account locked. Try again later.\n";
-            send(cfd, m, strlen(m), 0);
+            char msg[] = "LOCKED";
+            send(cfd, msg, strlen(msg), 0);
             continue;
         }
 
         if(strcmp(p, accounts[idx].password) != 0){
-            char m[] = "Wrong Password!!! Wait 5 seconds.\n";
-            send(cfd, m, strlen(m), 0);
+            char msg[] = "WRONG_PW";
+            send(cfd, msg, strlen(msg), 0);
             accounts[idx].locked_until = now + 10;
-            sleep(5);
             continue;
         }
 
-        char ok[] = "Login success!\n";
-        send(cfd, ok, strlen(ok), 0);
-        printf("Client logged in successfully: %s\n", u);
+        char msg[] = "LOGIN_OK";
+        send(cfd, msg, strlen(msg), 0);
+        printf("登入成功: %s\n", u);
         break;
     }
 }
 
-void handle_options(int cfd){
-    char buf[BUFFER_SIZE];
+void change_password(int cfd){
+    char buf[BUFFER_SIZE] = {0};
+    recv(cfd, buf, sizeof(buf) - 1, 0);
+    trim(buf);
 
-    while(1){
-        char menu[] = "\nSelect option:\n1. Register new account\n2. Change password\n3. Exit\n";
-        send(cfd, menu, strlen(menu), 0);
+    char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
+    sscanf(buf, "%[^|]|%s", user, newpw);
 
-        memset(buf, 0, sizeof(buf));
-        int n = recv(cfd, buf, sizeof(buf) - 1, 0);
-        if(n <= 0)
-            break;
-
-        if(buf[0] == '1'){
-            register_account(cfd, 0);
-        }
-        else if(buf[0] == '2'){
-            char u[BUFFER_SIZE] = {0};
-            char npw[BUFFER_SIZE] = {0};
-
-            char q1[] = "Enter your username: ";
-            send(cfd, q1, strlen(q1), 0);
-            recv(cfd, u, sizeof(u) - 1, 0);
-            trim(u);
-
-            int idx = find_idx(u);
-            if(idx < 0){
-                char m[] = "User not found.\n";
-                send(cfd, m, strlen(m), 0);
-                continue;
-            }
-
-            while(1){
-                char q2[] = "Enter new password (12-20, need upper & lower): ";
-                send(cfd, q2, strlen(q2), 0);
-                memset(npw, 0, sizeof(npw));
-                recv(cfd, npw, sizeof(npw) - 1, 0);
-                trim(npw);
-
-                if(!check_new_pw(npw)){
-                    char bad[] = "Please enter the new password again.\n";
-                    send(cfd, bad, strlen(bad), 0);
-                    continue;
-                }
-                break;
-            }
-
-            strcpy(accounts[idx].password, npw);
-            char ok[] = "Password changed successfully.\n";
-            send(cfd, ok, strlen(ok), 0);
-        }
-        else if(buf[0] == '3'){
-            break;
-        }
+    int idx = find_idx(user);
+    if(idx < 0){
+        char msg[] = "USER_NOT_FOUND";
+        send(cfd, msg, strlen(msg), 0);
+        return;
     }
+
+    strcpy(accounts[idx].password, newpw);
+    char msg[] = "PW_CHANGED";
+    send(cfd, msg, strlen(msg), 0);
+    printf("使用者 %s 修改密碼成功\n", user);
 }
 
 int main(){
     int sfd = socket(AF_INET, SOCK_STREAM, 0);
-    int cfd;
     struct sockaddr_in sa, ca;
     socklen_t alen = sizeof(ca);
 
@@ -215,11 +136,28 @@ int main(){
     printf("Server started on 127.0.0.1:5678 ...\n");
 
     while(1){
-        cfd = accept(sfd, (struct sockaddr*)&ca, &alen);
+        int cfd = accept(sfd, (struct sockaddr*)&ca, &alen);
         printf("Client connected: %s\n", inet_ntoa(ca.sin_addr));
-        register_account(cfd, 1);
-        login_phase(cfd);
-        handle_options(cfd);
+
+        while(1){
+            char cmd[BUFFER_SIZE] = {0};
+            int n = recv(cfd, cmd, sizeof(cmd) - 1, 0);
+            if(n <= 0)
+                break;
+
+            if(strncmp(cmd, "REGISTER", 8) == 0){
+                register_account(cfd);
+            }
+            else if(strncmp(cmd, "LOGIN", 5) == 0){
+                login_phase(cfd);
+            }
+            else if(strncmp(cmd, "CHPASS", 6) == 0){
+                change_password(cfd);
+            }
+            else if(strncmp(cmd, "EXIT", 4) == 0){
+                break;
+            }
+        }
         close(cfd);
     }
 
