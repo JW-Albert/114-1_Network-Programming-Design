@@ -1,95 +1,103 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
+#define PORT 5678
 #define BUFFER_SIZE 256
 
 int main() {
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    char recvbuf[BUFFER_SIZE * 3];
-    char studentID[BUFFER_SIZE], username[BUFFER_SIZE], password[BUFFER_SIZE];
-    char login_user[BUFFER_SIZE], login_pass[BUFFER_SIZE];
-    char sendbuf[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+    char student_id[50], account[50], password[50];
+    char input_account[50], input_password[50];
+    char client_name[50];
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("Socket creation failed");
+        exit(1);
+    }
+
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(5678);
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_port = htons(PORT);
 
-    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    listen(server_fd, 1);
-    printf("Server started on 127.0.0.1:5678 ...\n");
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        close(server_fd);
+        exit(1);
+    }
 
-    client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+    listen(server_fd, 5);
+    printf("Server started on 127.0.0.1:%d\n", PORT);
+
+    client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
+    if (client_fd < 0) {
+        perror("Accept failed");
+        close(server_fd);
+        exit(1);
+    }
+
     printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
 
-    memset(recvbuf, 0, sizeof(recvbuf));
-    int len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-    if (len <= 0) { close(client_fd); close(server_fd); return 0; }
+    // === 註冊階段 ===
+    recv(client_fd, student_id, sizeof(student_id), 0);
+    recv(client_fd, account, sizeof(account), 0);
+    recv(client_fd, password, sizeof(password), 0);
+    printf("[REGISTER] ID:%s  Account:%s  Password:%s\n", student_id, account, password);
 
-    char *token = strtok(recvbuf, "|");
-    if (token) strcpy(studentID, token);
-    token = strtok(NULL, "|");
-    if (token) strcpy(username, token);
-    token = strtok(NULL, "|");
-    if (token) strcpy(password, token);
+    strcpy(buffer, "Registration successful. Please login now.");
+    send(client_fd, buffer, strlen(buffer), 0);
 
-    printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", studentID, username, password);
+    // === 登入階段 ===
+    recv(client_fd, input_account, sizeof(input_account), 0);
+    recv(client_fd, input_password, sizeof(input_password), 0);
 
-    send(client_fd, "Please login\n", 13, 0);
-
-    memset(login_user, 0, sizeof(login_user));
-    memset(login_pass, 0, sizeof(login_pass));
-    recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-    token = strtok(recvbuf, "|");
-    if (token) strcpy(login_user, token);
-    token = strtok(NULL, "|");
-    if (token) strcpy(login_pass, token);
-
-    if (strcmp(login_user, username) != 0) {
-        send(client_fd, "Wrong ID!!!\n", 12, 0);
-        close(client_fd); close(server_fd); return 0;
-    }
-    if (strcmp(login_pass, password) != 0) {
-        send(client_fd, "Wrong Password!!!\n", 18, 0);
-        close(client_fd); close(server_fd); return 0;
+    if (strcmp(account, input_account) != 0) {
+        strcpy(buffer, "Wrong ID!!!");
+        send(client_fd, buffer, strlen(buffer), 0);
+        close(client_fd);
+        close(server_fd);
+        return 0;
     }
 
-    send(client_fd, "Login success! Start chatting.\n", 31, 0);
-    printf("Client logged in successfully! (%s)\n", username);
+    if (strcmp(password, input_password) != 0) {
+        strcpy(buffer, "Wrong Password!!!");
+        send(client_fd, buffer, strlen(buffer), 0);
+        close(client_fd);
+        close(server_fd);
+        return 0;
+    }
 
-    fd_set fds;
-    char msgbuf[BUFFER_SIZE];
+    strcpy(buffer, "Login successful. You can chat now!");
+    send(client_fd, buffer, strlen(buffer), 0);
+    strcpy(client_name, account);
+
+    printf("Client (%s) logged in successfully!\n", client_name);
+
+    // === 聊天階段 ===
     while (1) {
-        FD_ZERO(&fds);
-        FD_SET(0, &fds);
-        FD_SET(client_fd, &fds);
-        int maxfd = client_fd + 1;
-        select(maxfd, &fds, NULL, NULL, NULL);
-
-        if (FD_ISSET(client_fd, &fds)) {
-            memset(msgbuf, 0, sizeof(msgbuf));
-            int r = recv(client_fd, msgbuf, sizeof(msgbuf)-1, 0);
-            if (r <= 0) break;
-            msgbuf[r] = '\0';
-            if (strcmp(msgbuf, "exit") == 0) break;
-            printf("[%s]: %s\n", username, msgbuf);
+        memset(buffer, 0, sizeof(buffer));
+        int read_size = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        if (read_size <= 0) {
+            printf("Client disconnected.\n");
+            break;
         }
+        buffer[read_size] = '\0';
+        printf("[%s]: %s\n", client_name, buffer);
 
-        if (FD_ISSET(0, &fds)) {
-            memset(sendbuf, 0, sizeof(sendbuf));
-            fgets(sendbuf, sizeof(sendbuf), stdin);
-            sendbuf[strcspn(sendbuf, "\n")] = 0;
-            send(client_fd, sendbuf, strlen(sendbuf), 0);
-            if (strcmp(sendbuf, "exit") == 0) break;
-        }
+        printf("[You]: ");
+        fflush(stdout);
+        char msg[BUFFER_SIZE];
+        if (fgets(msg, sizeof(msg), stdin) == NULL) break;
+        msg[strcspn(msg, "\n")] = '\0';
+        send(client_fd, msg, strlen(msg), 0);
     }
 
-    printf("Client disconnected.\n");
     close(client_fd);
     close(server_fd);
     return 0;
