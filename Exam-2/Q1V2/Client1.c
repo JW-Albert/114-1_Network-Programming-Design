@@ -24,11 +24,13 @@ int main() {
     fgets(studentID, sizeof(studentID), stdin);
     studentID[strcspn(studentID, "\n")] = 0;
     send(sock, studentID, strlen(studentID), 0);
+    usleep(300000);
 
     printf("Create Username: ");
     fgets(username, sizeof(username), stdin);
     username[strcspn(username, "\n")] = 0;
     send(sock, username, strlen(username), 0);
+    usleep(300000);
 
     do {
         printf("Create Password (6-15 chars): ");
@@ -36,6 +38,7 @@ int main() {
         password[strcspn(password, "\n")] = 0;
     } while (strlen(password) < 6 || strlen(password) > 15);
     send(sock, password, strlen(password), 0);
+    usleep(300000);
     printf("Registration complete.\n");
 
     memset(recvbuf, 0, sizeof(recvbuf));
