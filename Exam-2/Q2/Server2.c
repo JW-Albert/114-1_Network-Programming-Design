@@ -111,17 +111,14 @@ void login_phase(int cfd, char *cmd)
     }
 }
 
-void change_password(int cfd)
+void change_password(int cfd, char *cmd)
 {
-    char buf[BUFFER_SIZE] = {0};
-    recv(cfd, buf, sizeof(buf) - 1, 0);
-
     char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
     // 跳過 "CHPASS " 前綴
-    char *data = buf;
-    if (strncmp(buf, "CHPASS ", 7) == 0)
+    char *data = cmd;
+    if (strncmp(cmd, "CHPASS ", 7) == 0)
     {
-        data = buf + 7; // 跳過 "CHPASS "
+        data = cmd + 7; // 跳過 "CHPASS "
     }
     sscanf(data, "%[^|]|%s", user, newpw);
 
@@ -171,11 +168,11 @@ int main()
             }
             else if (strncmp(cmd, "LOGIN", 5) == 0)
             {
-                login_phase(cfd);
+                login_phase(cfd, cmd);
             }
             else if (strncmp(cmd, "CHPASS", 6) == 0)
             {
-                change_password(cfd);
+                change_password(cfd, cmd);
             }
             else if (strncmp(cmd, "EXIT", 4) == 0)
             {
