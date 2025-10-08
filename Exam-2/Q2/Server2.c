@@ -18,12 +18,6 @@ typedef struct {
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
-void trim(char *s) {
-    int len = strlen(s);
-    while (len > 0 && (s[len - 1] == '\r' || s[len - 1] == '\n' || s[len - 1] == ' '))
-        s[--len] = 0;
-}
-
 int check_new_password_format(char *pw) {
     int len = strlen(pw);
     if (len < 12 || len > 20) return 0;
@@ -48,18 +42,15 @@ void register_account(int client_fd, int send_login_prompt) {
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID:\n", 19, 0);
+    send(client_fd, "Enter Student ID: ", 19, 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
-    trim(sid);
 
-    send(client_fd, "Enter Username:\n", 17, 0);
+    send(client_fd, "Enter Username: ", 17, 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
-    trim(user);
 
     while (1) {
-        send(client_fd, "Enter Password (6–15 chars):\n", 30, 0);
+        send(client_fd, "Enter Password (6–15 chars): ", 30, 0);
         recv(client_fd, pass, sizeof(pass) - 1, 0);
-        trim(pass);
         if (strlen(pass) < 6 || strlen(pass) > 15) {
             send(client_fd, "Invalid password length, please try again.\n", 43, 0);
             continue;
@@ -99,8 +90,6 @@ void login_phase(int client_fd) {
         memset(recvbuf, 0, sizeof(recvbuf));
         recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
         sscanf(recvbuf, "%[^|]|%s", user, pass);
-        trim(user);
-        trim(pass);
         int idx = find_account(user);
         now = time(NULL);
 
@@ -138,10 +127,9 @@ void handle_options(int client_fd) {
             register_account(client_fd, 0);
         } else if (recvbuf[0] == '2') {
             char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
-            send(client_fd, "Enter your username:\n", 22, 0);
+            send(client_fd, "Enter your username: ", 22, 0);
             memset(user, 0, sizeof(user));
             recv(client_fd, user, sizeof(user) - 1, 0);
-            trim(user);
             int idx = find_account(user);
             if (idx < 0) {
                 send(client_fd, "User not found.\n", 16, 0);
@@ -149,11 +137,11 @@ void handle_options(int client_fd) {
             }
 
             while (1) {
-                send(client_fd, "Enter new password (12–20 chars, upper & lower required):", 61, 0);
+                send(client_fd, "Enter new password (12–20 chars, upper & lower required): ", 61, 0);
                 memset(newpw, 0, sizeof(newpw));
                 recv(client_fd, newpw, sizeof(newpw) - 1, 0);
-                trim(newpw);
                 if (!check_new_password_format(newpw)) {
+                    send(client_fd, "Invalid password format, please try again.\n", 43, 0);
                     send(client_fd, "Please enter the new password again.\n", 37, 0);
                     continue;
                 }
