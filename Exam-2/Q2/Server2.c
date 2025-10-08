@@ -48,16 +48,16 @@ void register_account(int client_fd) {
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID:\n", 19, 0);
+    send(client_fd, "Enter Student ID:", 19, 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
     trim(sid);
 
-    send(client_fd, "Enter Username:\n", 17, 0);
+    send(client_fd, "Enter Username:", 17, 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
     trim(user);
 
     while (1) {
-        send(client_fd, "Enter Password (6–15 chars):\n", 30, 0);
+        send(client_fd, "Enter Password (6–15 chars):", 30, 0);
         recv(client_fd, pass, sizeof(pass) - 1, 0);
         trim(pass);
         if (strlen(pass) < 6 || strlen(pass) > 15) {
@@ -145,7 +145,7 @@ void handle_options(int client_fd) {
             }
 
             while (1) {
-                send(client_fd, "Enter new password (12–20 chars, upper & lower required):\n", 61, 0);
+                send(client_fd, "Enter new password (12–20 chars, upper & lower required):", 61, 0);
                 memset(newpw, 0, sizeof(newpw));
                 recv(client_fd, newpw, sizeof(newpw) - 1, 0);
                 trim(newpw);
