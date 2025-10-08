@@ -1,112 +1,89 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <sys/select.h>
-
-#define MAX_USER 3
 #define BUFFER_SIZE 256
 
-struct Account {
-    char id[BUFFER_SIZE];
-    char user[BUFFER_SIZE];
-    char pass[BUFFER_SIZE];
-};
-
-int checkPasswordRule(const char *p) {
-    int upper=0, lower=0;
-    if (strlen(p)<12 || strlen(p)>20) return 0;
-    for (int i=0;p[i];i++){
-        if (isupper(p[i])) upper=1;
-        if (islower(p[i])) lower=1;
-    }
-    return upper && lower;
+void trim(char *s){
+    int len=strlen(s);
+    while(len>0 && (s[len-1]=='\r'||s[len-1]=='\n'||s[len-1]==' ')) s[--len]=0;
 }
 
-int main() {
-    int sock, csock, readsize, addrlen, userCount=0;
-    struct sockaddr_in server, client;
-    struct Account acc[MAX_USER];
-    char buf[BUFFER_SIZE], buf2[BUFFER_SIZE];
-    fd_set readfds; struct timeval timeout;
+int main(){
+    int server_fd,client_fd;
+    struct sockaddr_in server_addr,client_addr;
+    socklen_t addr_len=sizeof(client_addr);
+    char recvbuf[BUFFER_SIZE*3],studentID[BUFFER_SIZE],username[BUFFER_SIZE],password[BUFFER_SIZE];
+    char login_user[BUFFER_SIZE],login_pass[BUFFER_SIZE],sendbuf[BUFFER_SIZE];
 
-    bzero(&server,sizeof(server));
-    server.sin_family=AF_INET;
-    server.sin_port=htons(5678);
-    server.sin_addr.s_addr=INADDR_ANY;
+    server_fd=socket(AF_INET,SOCK_STREAM,0);
+    server_addr.sin_family=AF_INET;
+    server_addr.sin_port=htons(5678);
+    server_addr.sin_addr.s_addr=INADDR_ANY;
+    bind(server_fd,(struct sockaddr*)&server_addr,sizeof(server_addr));
+    listen(server_fd,1);
+    printf("Server started on 127.0.0.1:5678 ...\n");
 
-    sock=socket(AF_INET,SOCK_STREAM,0);
-    bind(sock,(struct sockaddr*)&server,sizeof(server));
-    listen(sock,5);
-    addrlen=sizeof(client);
-    csock=accept(sock,(struct sockaddr*)&client,&addrlen);
+    client_fd=accept(server_fd,(struct sockaddr*)&client_addr,&addr_len);
+    printf("Client connected: %s\n",inet_ntoa(client_addr.sin_addr));
 
-    send(csock,"Register ID:",12,0);
-    recv(csock,acc[userCount].id,sizeof(acc[userCount].id),0);
-    send(csock,"Register Username:",18,0);
-    recv(csock,acc[userCount].user,sizeof(acc[userCount].user),0);
-    send(csock,"Register Password:",18,0);
-    recv(csock,acc[userCount].pass,sizeof(acc[userCount].pass),0);
-    userCount++;
-    send(csock,"Registration done.",18,0);
+    memset(recvbuf,0,sizeof(recvbuf));
+    recv(client_fd,recvbuf,sizeof(recvbuf)-1,0);
+    trim(recvbuf);
+    char *token=strtok(recvbuf,"|");
+    strcpy(studentID,token);
+    token=strtok(NULL,"|"); strcpy(username,token);
+    token=strtok(NULL,"|"); strcpy(password,token);
+    trim(studentID); trim(username); trim(password);
+    printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n",studentID,username,password);
+    send(client_fd,"Please login\n",13,0);
 
     while(1){
-        send(csock,"Please login ID:",16,0);
-        recv(csock,buf,sizeof(buf),0);
-        send(csock,"Please login Password:",23,0);
-        FD_ZERO(&readfds);
-        FD_SET(csock,&readfds);
-        timeout.tv_sec=5; timeout.tv_usec=0;
-        int ret=select(csock+1,&readfds,NULL,NULL,&timeout);
-        if(ret==0){ send(csock,"Timeout. Wait 10s.\n",19,0); sleep(10); continue; }
-        recv(csock,buf2,sizeof(buf2),0);
-        int found=-1;
-        for(int i=0;i<userCount;i++)
-            if(strcmp(acc[i].id,buf)==0){ found=i; break; }
-        if(found==-1){ send(csock,"Wrong ID!!!\n",12,0); continue; }
-        if(strcmp(acc[found].pass,buf2)!=0){ send(csock,"Wrong Password!!!\n",18,0); sleep(10); continue; }
-        send(csock,"Login success!\n",15,0);
+        memset(recvbuf,0,sizeof(recvbuf));
+        int len=recv(client_fd,recvbuf,sizeof(recvbuf)-1,0);
+        if(len<=0) break;
+        trim(recvbuf);
+        token=strtok(recvbuf,"|"); strcpy(login_user,token);
+        token=strtok(NULL,"|"); strcpy(login_pass,token);
+        trim(login_user); trim(login_pass);
+
+        if(strcmp(login_user,username)!=0){
+            send(client_fd,"Wrong ID!!!\n",12,0);
+            continue;
+        }
+        if(strcmp(login_pass,password)!=0){
+            send(client_fd,"Wrong Password!!!\n",18,0);
+            continue;
+        }
+        send(client_fd,"Login success! Start chatting.\n",31,0);
+        printf("Client logged in successfully! (%s)\n",username);
         break;
     }
 
+    fd_set fds; char msgbuf[BUFFER_SIZE];
     while(1){
-        send(csock,"Select: 1.New Account 2.Change Password\n",40,0);
-        recv(csock,buf,sizeof(buf),0);
-        if(strcmp(buf,"1")==0){
-            if(userCount>=MAX_USER){ send(csock,"Account full\n",13,0); continue; }
-            send(csock,"New ID:",7,0);
-            recv(csock,buf,sizeof(buf),0);
-            int dup=0;
-            for(int i=0;i<userCount;i++)
-                if(strcmp(acc[i].id,buf)==0){ dup=1; break; }
-            if(dup){ send(csock,"Duplicate ID. Reject.\n",22,0); continue; }
-            strcpy(acc[userCount].id,buf);
-            send(csock,"New Username:",13,0);
-            recv(csock,acc[userCount].user,sizeof(acc[userCount].user),0);
-            send(csock,"New Password:",13,0);
-            recv(csock,acc[userCount].pass,sizeof(acc[userCount].pass),0);
-            userCount++;
-            send(csock,"New account created.\n",21,0);
-        } else if(strcmp(buf,"2")==0){
-            send(csock,"Enter ID:",9,0);
-            recv(csock,buf,sizeof(buf),0);
-            int idx=-1;
-            for(int i=0;i<userCount;i++)
-                if(strcmp(acc[i].id,buf)==0){ idx=i; break; }
-            if(idx==-1){ send(csock,"No such ID\n",11,0); continue; }
-            send(csock,"Enter new password:",19,0);
-            recv(csock,buf2,sizeof(buf2),0);
-            if(!checkPasswordRule(buf2)){ send(csock,"Please enter the new password again.\n",36,0); continue; }
-            strcpy(acc[idx].pass,buf2);
-            send(csock,"Password updated.\n",18,0);
+        FD_ZERO(&fds);
+        FD_SET(0,&fds); FD_SET(client_fd,&fds);
+        int maxfd=client_fd+1;
+        select(maxfd,&fds,NULL,NULL,NULL);
+
+        if(FD_ISSET(client_fd,&fds)){
+            memset(msgbuf,0,sizeof(msgbuf));
+            int r=recv(client_fd,msgbuf,sizeof(msgbuf)-1,0);
+            if(r<=0) break;
+            trim(msgbuf);
+            if(strcmp(msgbuf,"exit")==0) break;
+            printf("[%s]: %s\n",username,msgbuf);
+        }
+        if(FD_ISSET(0,&fds)){
+            memset(sendbuf,0,sizeof(sendbuf));
+            fgets(sendbuf,sizeof(sendbuf),stdin);
+            sendbuf[strcspn(sendbuf,"\n")]=0;
+            send(client_fd,sendbuf,strlen(sendbuf),0);
+            if(strcmp(sendbuf,"exit")==0) break;
         }
     }
-
-    close(csock);
-    close(sock);
+    close(client_fd); close(server_fd);
     return 0;
 }
