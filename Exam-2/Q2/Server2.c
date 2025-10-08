@@ -48,15 +48,15 @@ void register_account(int client_fd) {
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID:\n", 19, 0);
+    send(client_fd, "Enter Student ID:", 19, 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
     trim(sid);
 
-    send(client_fd, "Enter Username:\n", 17, 0);
+    send(client_fd, "Enter Username:", 17, 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
     trim(user);
 
-    send(client_fd, "Enter Password:\n", 17, 0);
+    send(client_fd, "Enter Password:", 17, 0);
     recv(client_fd, pass, sizeof(pass) - 1, 0);
     trim(pass);
 
