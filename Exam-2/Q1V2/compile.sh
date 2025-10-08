@@ -1,14 +1,8 @@
 #!/bin/bash
 
-echo "Removing old server and client..."
-rm -f server client
+rm -f server_exec client_exec
 
-echo "Compiling server..."
-gcc -o server Server1.c
-echo "Server compiled"
+gcc -o server_exec Server1.c
 
-echo "Compiling client..."
-gcc -o client Client1.c
-echo "Client compiled"
+gcc -o client_exec Client1.c
 
-echo "Done"
