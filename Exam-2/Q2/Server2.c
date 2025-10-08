@@ -19,13 +19,6 @@ typedef struct
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
-void trim(char *s)
-{
-    int n = strlen(s);
-    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' '))
-        s[--n] = 0;
-}
-
 int find_idx(const char *u)
 {
     for (int i = 0; i < acc_count; i++)
@@ -36,18 +29,14 @@ int find_idx(const char *u)
     return -1;
 }
 
-void register_account(int cfd)
+void register_account(int cfd, char *cmd)
 {
-    char buf[BUFFER_SIZE] = {0};
-    recv(cfd, buf, sizeof(buf) - 1, 0);
-    trim(buf);
-
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pw[BUFFER_SIZE];
     // 跳過 "REGISTER " 前綴，直接解析學號|用戶名|密碼
-    char *data = buf;
-    if (strncmp(buf, "REGISTER ", 9) == 0)
+    char *data = cmd;
+    if (strncmp(cmd, "REGISTER ", 9) == 0)
     {
-        data = buf + 9; // 跳過 "REGISTER "
+        data = cmd + 9; // 跳過 "REGISTER "
     }
     sscanf(data, "%[^|]|%[^|]|%s", sid, user, pw);
 
@@ -69,7 +58,7 @@ void register_account(int cfd)
     printf("註冊成功: %s %s %s\n", sid, user, pw);
 }
 
-void login_phase(int cfd)
+void login_phase(int cfd, char *cmd)
 {
     char buf[BUFFER_SIZE];
     char u[BUFFER_SIZE];
@@ -89,8 +78,6 @@ void login_phase(int cfd)
             data = buf + 6; // 跳過 "LOGIN "
         }
         sscanf(data, "%[^|]|%s", u, p);
-        trim(u);
-        trim(p);
 
         int idx = find_idx(u);
         time_t now = time(NULL);
@@ -128,7 +115,6 @@ void change_password(int cfd)
 {
     char buf[BUFFER_SIZE] = {0};
     recv(cfd, buf, sizeof(buf) - 1, 0);
-    trim(buf);
 
     char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
     // 跳過 "CHPASS " 前綴
@@ -181,7 +167,7 @@ int main()
 
             if (strncmp(cmd, "REGISTER", 8) == 0)
             {
-                register_account(cfd);
+                register_account(cfd, cmd);
             }
             else if (strncmp(cmd, "LOGIN", 5) == 0)
             {
