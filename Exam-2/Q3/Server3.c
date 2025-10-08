@@ -1,76 +1,122 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <ctype.h>
 
 #define BUFFER_SIZE 256
 
-int main() {
-    int sock, csock, addrlen;
-    struct sockaddr_in server, client;
-    char buf[BUFFER_SIZE], msg[BUFFER_SIZE];
-    bzero(&server,sizeof(server));
-    server.sin_family=AF_INET;
-    server.sin_port=htons(5678);
-    server.sin_addr.s_addr=INADDR_ANY;
-    sock=socket(AF_INET,SOCK_STREAM,0);
-    bind(sock,(struct sockaddr*)&server,sizeof(server));
-    listen(sock,5);
-    addrlen=sizeof(client);
-    csock=accept(sock,(struct sockaddr*)&client,&addrlen);
-    while(1){
-        memset(buf,0,sizeof(buf));
-        int len=recv(csock,buf,sizeof(buf),0);
-        if(len<=0) break;
-        buf[len]=0;
-        if(strcmp(buf,"A")==0){
-            char a_str[BUFFER_SIZE], b_str[BUFFER_SIZE], op[BUFFER_SIZE];
-            recv(csock,a_str,sizeof(a_str),0);
-            recv(csock,b_str,sizeof(b_str),0);
-            recv(csock,op,sizeof(op),0);
-            int a=atoi(a_str), b=atoi(b_str);
-            if(a==-1||b==-1){ send(csock,"Request Denied\n",15,0); continue; }
-            double res=0;
-            if(strcmp(op,"+")==0) res=a+b;
-            else if(strcmp(op,"-")==0) res=a-b;
-            else if(strcmp(op,"*")==0) res=a*b;
-            else if(strcmp(op,"/")==0) res=b!=0?(double)a/b:0;
-            sprintf(msg,"Result: %.2f\n",res);
-            send(csock,msg,strlen(msg),0);
-        } else if(strcmp(buf,"B")==0){
-            int nums[10], count=0, zeros=0;
-            while(1){
-                recv(csock,msg,sizeof(msg),0);
-                if(strcmp(msg,"END")==0) break;
-                int n=atoi(msg);
-                nums[count++]=n;
-                if(n==0) zeros++;
-            }
-            if(zeros>=2){ send(csock,"No valid data\n",14,0); continue; }
-            for(int i=0;i<count-1;i++)
-                for(int j=i+1;j<count;j++)
-                    if(nums[i]>nums[j]){int t=nums[i];nums[i]=nums[j];nums[j]=t;}
-            char out[BUFFER_SIZE]="";
-            for(int i=0;i<count;i++){ char tmp[32]; sprintf(tmp,"%d ",nums[i]); strcat(out,tmp); }
-            strcat(out,"\n");
-            send(csock,out,strlen(out),0);
-        } else if(strcmp(buf,"C")==0){
-            char data[BUFFER_SIZE]; recv(csock,data,sizeof(data),0);
-            int freq[256]={0};
-            for(int i=0;data[i];i++) if(isalpha(data[i])) freq[(unsigned char)data[i]]++;
-            char out[BUFFER_SIZE]="";
-            for(int i='A';i<='z';i++){
-                if(freq[i]>0){ char tmp[32]; sprintf(tmp,"%c:%d ",i,freq[i]); strcat(out,tmp); }
-            }
-            strcat(out,"\n");
-            send(csock,out,strlen(out),0);
+void trim(char *s){
+    int n = strlen(s);
+    while(n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' '))
+        s[--n] = 0;
+}
+
+void handle_A(int cfd, char *buf){
+    int a, b;
+    sscanf(buf, "%d|%d", &a, &b);
+    if(a == -1 || b == -1){
+        char msg[] = "Request Denied";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+    char msg[BUFFER_SIZE];
+    snprintf(msg, sizeof(msg), "Result: %d", a + b);
+    send(cfd, msg, strlen(msg), 0);
+}
+
+void handle_B(int cfd, char *buf){
+    int nums[20];
+    int count = 0;
+    char *token = strtok(buf, "|");
+    while(token && count < 20){
+        nums[count++] = atoi(token);
+        token = strtok(NULL, "|");
+    }
+    if(count < 4){
+        char msg[] = "No valid data";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+    for(int i = 0; i < count; i++){
+        if(nums[i] == 0){
+            char msg[] = "No valid data";
+            send(cfd, msg, strlen(msg), 0);
+            return;
         }
     }
-    close(csock);
-    close(sock);
+    for(int i = 0; i < count - 1; i++){
+        for(int j = i + 1; j < count; j++){
+            if(nums[i] > nums[j]){
+                int t = nums[i];
+                nums[i] = nums[j];
+                nums[j] = t;
+            }
+        }
+    }
+    char msg[BUFFER_SIZE] = "";
+    strcat(msg, "Sorted: ");
+    for(int i = 0; i < count; i++){
+        char temp[32];
+        snprintf(temp, sizeof(temp), "%d ", nums[i]);
+        strcat(msg, temp);
+    }
+    send(cfd, msg, strlen(msg), 0);
+}
+
+void handle_C(int cfd, char *buf){
+    int count[256] = {0};
+    for(int i = 0; buf[i]; i++){
+        if(isalpha(buf[i]))
+            count[(unsigned char)buf[i]]++;
+    }
+    char msg[BUFFER_SIZE] = "";
+    strcat(msg, "Statistics:\n");
+    for(int i = 0; i < 256; i++){
+        if(count[i] > 0){
+            char temp[64];
+            snprintf(temp, sizeof(temp), "%c: %d\n", i, count[i]);
+            strcat(msg, temp);
+        }
+    }
+    send(cfd, msg, strlen(msg), 0);
+}
+
+int main(){
+    int sfd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in sa, ca;
+    socklen_t alen = sizeof(ca);
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons(5678);
+    sa.sin_addr.s_addr = INADDR_ANY;
+    bind(sfd, (struct sockaddr*)&sa, sizeof(sa));
+    listen(sfd, 1);
+    printf("Server started on 127.0.0.1:5678 ...\n");
+    while(1){
+        int cfd = accept(sfd, (struct sockaddr*)&ca, &alen);
+        printf("Client connected: %s\n", inet_ntoa(ca.sin_addr));
+        while(1){
+            char buf[BUFFER_SIZE] = {0};
+            int n = recv(cfd, buf, sizeof(buf) - 1, 0);
+            if(n <= 0)
+                break;
+            trim(buf);
+            if(strncmp(buf, "A ", 2) == 0){
+                handle_A(cfd, buf + 2);
+            }
+            else if(strncmp(buf, "B ", 2) == 0){
+                handle_B(cfd, buf + 2);
+            }
+            else if(strncmp(buf, "C ", 2) == 0){
+                handle_C(cfd, buf + 2);
+            }
+            else if(strncmp(buf, "EXIT", 4) == 0){
+                break;
+            }
+        }
+        close(cfd);
+    }
+    close(sfd);
     return 0;
 }

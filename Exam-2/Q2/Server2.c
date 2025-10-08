@@ -8,7 +8,8 @@
 #define BUFFER_SIZE 256
 #define MAX_ACCOUNTS 10
 
-typedef struct {
+typedef struct
+{
     char studentID[BUFFER_SIZE];
     char username[BUFFER_SIZE];
     char password[BUFFER_SIZE];
@@ -18,29 +19,40 @@ typedef struct {
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
-void trim(char *s){
+void trim(char *s)
+{
     int n = strlen(s);
-    while(n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' '))
+    while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r' || s[n - 1] == ' '))
         s[--n] = 0;
 }
 
-int find_idx(const char* u){
-    for(int i = 0; i < acc_count; i++){
-        if(strcmp(accounts[i].username, u) == 0)
+int find_idx(const char *u)
+{
+    for (int i = 0; i < acc_count; i++)
+    {
+        if (strcmp(accounts[i].username, u) == 0)
             return i;
     }
     return -1;
 }
 
-void register_account(int cfd){
+void register_account(int cfd)
+{
     char buf[BUFFER_SIZE] = {0};
     recv(cfd, buf, sizeof(buf) - 1, 0);
     trim(buf);
 
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pw[BUFFER_SIZE];
-    sscanf(buf, "%[^|]|%[^|]|%s", sid, user, pw);
+    // 跳過 "REGISTER " 前綴，直接解析學號|用戶名|密碼
+    char *data = buf;
+    if (strncmp(buf, "REGISTER ", 9) == 0)
+    {
+        data = buf + 9; // 跳過 "REGISTER "
+    }
+    sscanf(data, "%[^|]|%[^|]|%s", sid, user, pw);
 
-    if(acc_count >= MAX_ACCOUNTS){
+    if (acc_count >= MAX_ACCOUNTS)
+    {
         char msg[] = "SERVER_FULL";
         send(cfd, msg, strlen(msg), 0);
         return;
@@ -57,37 +69,48 @@ void register_account(int cfd){
     printf("註冊成功: %s %s %s\n", sid, user, pw);
 }
 
-void login_phase(int cfd){
+void login_phase(int cfd)
+{
     char buf[BUFFER_SIZE];
     char u[BUFFER_SIZE];
     char p[BUFFER_SIZE];
 
-    while(1){
+    while (1)
+    {
         memset(buf, 0, sizeof(buf));
         int n = recv(cfd, buf, sizeof(buf) - 1, 0);
-        if(n <= 0)
+        if (n <= 0)
             return;
 
-        sscanf(buf, "%[^|]|%s", u, p);
+        // 跳過 "LOGIN " 前綴
+        char *data = buf;
+        if (strncmp(buf, "LOGIN ", 6) == 0)
+        {
+            data = buf + 6; // 跳過 "LOGIN "
+        }
+        sscanf(data, "%[^|]|%s", u, p);
         trim(u);
         trim(p);
 
         int idx = find_idx(u);
         time_t now = time(NULL);
 
-        if(idx < 0){
+        if (idx < 0)
+        {
             char msg[] = "WRONG_ID";
             send(cfd, msg, strlen(msg), 0);
             continue;
         }
 
-        if(now < accounts[idx].locked_until){
+        if (now < accounts[idx].locked_until)
+        {
             char msg[] = "LOCKED";
             send(cfd, msg, strlen(msg), 0);
             continue;
         }
 
-        if(strcmp(p, accounts[idx].password) != 0){
+        if (strcmp(p, accounts[idx].password) != 0)
+        {
             char msg[] = "WRONG_PW";
             send(cfd, msg, strlen(msg), 0);
             accounts[idx].locked_until = now + 10;
@@ -101,16 +124,24 @@ void login_phase(int cfd){
     }
 }
 
-void change_password(int cfd){
+void change_password(int cfd)
+{
     char buf[BUFFER_SIZE] = {0};
     recv(cfd, buf, sizeof(buf) - 1, 0);
     trim(buf);
 
     char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
-    sscanf(buf, "%[^|]|%s", user, newpw);
+    // 跳過 "CHPASS " 前綴
+    char *data = buf;
+    if (strncmp(buf, "CHPASS ", 7) == 0)
+    {
+        data = buf + 7; // 跳過 "CHPASS "
+    }
+    sscanf(data, "%[^|]|%s", user, newpw);
 
     int idx = find_idx(user);
-    if(idx < 0){
+    if (idx < 0)
+    {
         char msg[] = "USER_NOT_FOUND";
         send(cfd, msg, strlen(msg), 0);
         return;
@@ -122,7 +153,8 @@ void change_password(int cfd){
     printf("使用者 %s 修改密碼成功\n", user);
 }
 
-int main(){
+int main()
+{
     int sfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in sa, ca;
     socklen_t alen = sizeof(ca);
@@ -131,30 +163,36 @@ int main(){
     sa.sin_port = htons(5678);
     sa.sin_addr.s_addr = INADDR_ANY;
 
-    bind(sfd, (struct sockaddr*)&sa, sizeof(sa));
+    bind(sfd, (struct sockaddr *)&sa, sizeof(sa));
     listen(sfd, 1);
     printf("Server started on 127.0.0.1:5678 ...\n");
 
-    while(1){
-        int cfd = accept(sfd, (struct sockaddr*)&ca, &alen);
+    while (1)
+    {
+        int cfd = accept(sfd, (struct sockaddr *)&ca, &alen);
         printf("Client connected: %s\n", inet_ntoa(ca.sin_addr));
 
-        while(1){
+        while (1)
+        {
             char cmd[BUFFER_SIZE] = {0};
             int n = recv(cfd, cmd, sizeof(cmd) - 1, 0);
-            if(n <= 0)
+            if (n <= 0)
                 break;
 
-            if(strncmp(cmd, "REGISTER", 8) == 0){
+            if (strncmp(cmd, "REGISTER", 8) == 0)
+            {
                 register_account(cfd);
             }
-            else if(strncmp(cmd, "LOGIN", 5) == 0){
+            else if (strncmp(cmd, "LOGIN", 5) == 0)
+            {
                 login_phase(cfd);
             }
-            else if(strncmp(cmd, "CHPASS", 6) == 0){
+            else if (strncmp(cmd, "CHPASS", 6) == 0)
+            {
                 change_password(cfd);
             }
-            else if(strncmp(cmd, "EXIT", 4) == 0){
+            else if (strncmp(cmd, "EXIT", 4) == 0)
+            {
                 break;
             }
         }

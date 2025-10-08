@@ -1,71 +1,126 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <sys/select.h>
 
 #define BUFFER_SIZE 256
 
-int timedInput(char *buf,int sec){
-    fd_set fds; struct timeval t; FD_ZERO(&fds);
-    FD_SET(0,&fds); t.tv_sec=sec; t.tv_usec=0;
-    int r=select(1,&fds,NULL,NULL,&t);
-    if(r==0) return 0;
-    fgets(buf,BUFFER_SIZE,stdin);
-    buf[strcspn(buf,"\n")]=0;
-    return 1;
-}
-
 int main(){
-    int sock; struct sockaddr_in server;
-    char buf[BUFFER_SIZE], sendbuf[BUFFER_SIZE];
-    sock=socket(AF_INET,SOCK_STREAM,0);
-    server.sin_family=AF_INET;
-    server.sin_port=htons(5678);
-    server.sin_addr.s_addr=inet_addr("127.0.0.1");
-    connect(sock,(struct sockaddr*)&server,sizeof(server));
+    int sock;
+    struct sockaddr_in server;
+    char recvbuf[BUFFER_SIZE];
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(5678);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    connect(sock, (struct sockaddr*)&server, sizeof(server));
+    printf("Connected to server.\n");
     while(1){
-        printf("Select Function (A/B/C): ");
-        fgets(buf,sizeof(buf),stdin);
-        buf[strcspn(buf,"\n")]=0;
-        send(sock,buf,strlen(buf),0);
-        if(strcmp(buf,"A")==0){
-            char a[BUFFER_SIZE], b[BUFFER_SIZE], op[BUFFER_SIZE];
-            printf("Enter A (5s): "); if(!timedInput(a,5)) strcpy(a,"-1");
-            printf("Enter B (5s): "); if(!timedInput(b,5)) strcpy(b,"-1");
-            printf("Operator (+-*/): "); fgets(op,sizeof(op),stdin); op[strcspn(op,"\n")]=0;
-            send(sock,a,strlen(a),0); usleep(100000);
-            send(sock,b,strlen(b),0); usleep(100000);
-            send(sock,op,strlen(op),0);
-            int len=recv(sock,buf,sizeof(buf)-1,0); buf[len]=0; printf("%s",buf);
-        } else if(strcmp(buf,"B")==0){
-            int count=0;
-            while(count<10){
-                printf("Enter number %d (3s): ",count+1);
-                if(!timedInput(sendbuf,3)){ strcpy(sendbuf,"0"); send(sock,sendbuf,strlen(sendbuf),0); break; }
-                if(strlen(sendbuf)==0) break;
-                send(sock,sendbuf,strlen(sendbuf),0);
+        printf("\nSelect function:\n1. A\n2. B\n3. C\n4. Exit\nSelect: ");
+        char opt[8];
+        fgets(opt, sizeof(opt), stdin);
+        opt[strcspn(opt, "\n")] = 0;
+        if(opt[0] == '1'){
+            int a = -1, b = -1;
+            char buf[BUFFER_SIZE];
+            fd_set fds;
+            struct timeval tv;
+            printf("Enter first number (5s timeout): ");
+            fflush(stdout);
+            FD_ZERO(&fds);
+            FD_SET(0, &fds);
+            tv.tv_sec = 5;
+            tv.tv_usec = 0;
+            int r = select(1, &fds, NULL, NULL, &tv);
+            if(r > 0){
+                scanf("%d", &a);
+                getchar();
+            }
+            else{
+                printf("\nTimeout! A=-1\n");
+            }
+            printf("Enter second number (5s timeout): ");
+            fflush(stdout);
+            FD_ZERO(&fds);
+            FD_SET(0, &fds);
+            tv.tv_sec = 5;
+            tv.tv_usec = 0;
+            r = select(1, &fds, NULL, NULL, &tv);
+            if(r > 0){
+                scanf("%d", &b);
+                getchar();
+            }
+            else{
+                printf("\nTimeout! B=-1\n");
+            }
+            snprintf(buf, sizeof(buf), "A %d|%d", a, b);
+            send(sock, buf, strlen(buf), 0);
+            memset(recvbuf, 0, sizeof(recvbuf));
+            recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            printf("Server: %s\n", recvbuf);
+        }
+        else if(opt[0] == '2'){
+            char buf[BUFFER_SIZE] = "B ";
+            int nums[20];
+            int count = 0;
+            fd_set fds;
+            struct timeval tv;
+            printf("Enter numbers (min 4, max 10, 3s between each, end by timeout):\n");
+            while(count < 10){
+                printf("Input #%d: ", count + 1);
+                fflush(stdout);
+                FD_ZERO(&fds);
+                FD_SET(0, &fds);
+                tv.tv_sec = 3;
+                tv.tv_usec = 0;
+                int r = select(1, &fds, NULL, NULL, &tv);
+                if(r <= 0)
+                    break;
+                scanf("%d", &nums[count]);
+                getchar();
                 count++;
-                if(count>=4){ printf("Continue? (y/n): "); char c[8]; fgets(c,8,stdin); if(c[0]=='n'||c[0]=='N') break; }
             }
-            send(sock,"END",3,0);
-            int len=recv(sock,buf,sizeof(buf)-1,0); buf[len]=0; printf("%s",buf);
-        } else if(strcmp(buf,"C")==0){
-            char data[BUFFER_SIZE]="", tmp[BUFFER_SIZE];
-            printf("Start typing letters (10s): ");
-            fd_set fds; struct timeval t; FD_ZERO(&fds); FD_SET(0,&fds);
-            t.tv_sec=10; t.tv_usec=0;
-            while(1){
-                int r=select(1,&fds,NULL,NULL,&t);
-                if(r==0) break;
-                fgets(tmp,sizeof(tmp),stdin);
-                strcat(data,tmp);
+            for(int i = 0; i < count; i++){
+                char temp[32];
+                snprintf(temp, sizeof(temp), "%d|", nums[i]);
+                strcat(buf, temp);
             }
-            send(sock,data,strlen(data),0);
-            int len=recv(sock,buf,sizeof(buf)-1,0); buf[len]=0; printf("%s",buf);
+            send(sock, buf, strlen(buf), 0);
+            memset(recvbuf, 0, sizeof(recvbuf));
+            recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            printf("Server: %s\n", recvbuf);
+        }
+        else if(opt[0] == '3'){
+            char buf[BUFFER_SIZE] = "C ";
+            char input[BUFFER_SIZE];
+            fd_set fds;
+            struct timeval tv;
+            printf("Start typing letters (10s limit):\n");
+            fflush(stdout);
+            FD_ZERO(&fds);
+            FD_SET(0, &fds);
+            tv.tv_sec = 10;
+            tv.tv_usec = 0;
+            int r = select(1, &fds, NULL, NULL, &tv);
+            if(r > 0){
+                fgets(input, sizeof(input), stdin);
+                input[strcspn(input, "\n")] = 0;
+                strcat(buf, input);
+            }
+            else{
+                printf("\nTimeout. Sending empty.\n");
+            }
+            send(sock, buf, strlen(buf), 0);
+            memset(recvbuf, 0, sizeof(recvbuf));
+            recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+            printf("Server: %s\n", recvbuf);
+        }
+        else if(opt[0] == '4'){
+            char msg[] = "EXIT";
+            send(sock, msg, strlen(msg), 0);
+            break;
         }
     }
     close(sock);
