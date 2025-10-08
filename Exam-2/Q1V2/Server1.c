@@ -6,7 +6,8 @@
 
 #define BUFFER_SIZE 256
 
-int main() {
+int main()
+{
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
@@ -19,36 +20,38 @@ int main() {
     server_addr.sin_port = htons(5678);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     listen(server_fd, 1);
     printf("Server started on 127.0.0.1:5678 ...\n");
 
-    client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+    client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
     printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
 
     memset(studentID, 0, sizeof(studentID));
     memset(username, 0, sizeof(username));
     memset(password, 0, sizeof(password));
 
-    recv(client_fd, studentID, sizeof(studentID)-1, 0);
-    recv(client_fd, username, sizeof(username)-1, 0);
-    recv(client_fd, password, sizeof(password)-1, 0);
+    recv(client_fd, studentID, sizeof(studentID) - 1, 0);
+    recv(client_fd, username, sizeof(username) - 1, 0);
+    recv(client_fd, password, sizeof(password) - 1, 0);
     printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", studentID, username, password);
 
     send(client_fd, "Please login\n", 13, 0);
 
     memset(login_user, 0, sizeof(login_user));
     memset(login_pass, 0, sizeof(login_pass));
-    recv(client_fd, login_user, sizeof(login_user)-1, 0);
-    recv(client_fd, login_pass, sizeof(login_pass)-1, 0);
+    recv(client_fd, login_user, sizeof(login_user) - 1, 0);
+    recv(client_fd, login_pass, sizeof(login_pass) - 1, 0);
 
-    if (strcmp(login_user, username) != 0) {
+    if (strcmp(login_user, username) != 0)
+    {
         send(client_fd, "Wrong ID!!!\n", 12, 0);
         close(client_fd);
         close(server_fd);
         return 0;
     }
-    if (strcmp(login_pass, password) != 0) {
+    if (strcmp(login_pass, password) != 0)
+    {
         send(client_fd, "Wrong Password!!!\n", 18, 0);
         close(client_fd);
         close(server_fd);
@@ -59,28 +62,34 @@ int main() {
     printf("Client logged in successfully! (%s)\n", username);
 
     fd_set fds;
-    while (1) {
+    while (1)
+    {
         FD_ZERO(&fds);
         FD_SET(0, &fds);
         FD_SET(client_fd, &fds);
         int maxfd = client_fd + 1;
         select(maxfd, &fds, NULL, NULL, NULL);
 
-        if (FD_ISSET(client_fd, &fds)) {
+        if (FD_ISSET(client_fd, &fds))
+        {
             memset(recvbuf, 0, sizeof(recvbuf));
-            int len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-            if (len <= 0) break;
+            int len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
+            if (len <= 0)
+                break;
             recvbuf[len] = '\0';
-            if (strcmp(recvbuf, "exit") == 0) break;
+            if (strcmp(recvbuf, "exit") == 0)
+                break;
             printf("[%s]: %s\n", username, recvbuf);
         }
 
-        if (FD_ISSET(0, &fds)) {
+        if (FD_ISSET(0, &fds))
+        {
             memset(sendbuf, 0, sizeof(sendbuf));
             fgets(sendbuf, sizeof(sendbuf), stdin);
             sendbuf[strcspn(sendbuf, "\n")] = 0;
             send(client_fd, sendbuf, strlen(sendbuf), 0);
-            if (strcmp(sendbuf, "exit") == 0) break;
+            if (strcmp(sendbuf, "exit") == 0)
+                break;
         }
     }
 
