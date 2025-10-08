@@ -24,7 +24,7 @@ void trim(char *s) {
         s[--len] = 0;
 }
 
-int check_password_format(char *pw) {
+int check_new_password_format(char *pw) {
     int len = strlen(pw);
     if (len < 12 || len > 20) return 0;
     int upper = 0, lower = 0;
@@ -48,17 +48,24 @@ void register_account(int client_fd) {
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID:", 19, 0);
+    send(client_fd, "Enter Student ID:\n", 19, 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
     trim(sid);
 
-    send(client_fd, "Enter Username:", 17, 0);
+    send(client_fd, "Enter Username:\n", 17, 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
     trim(user);
 
-    send(client_fd, "Enter Password:", 17, 0);
-    recv(client_fd, pass, sizeof(pass) - 1, 0);
-    trim(pass);
+    while (1) {
+        send(client_fd, "Enter Password (6–15 chars):\n", 30, 0);
+        recv(client_fd, pass, sizeof(pass) - 1, 0);
+        trim(pass);
+        if (strlen(pass) < 6 || strlen(pass) > 15) {
+            send(client_fd, "Invalid password length, please try again.\n", 43, 0);
+            continue;
+        }
+        break;
+    }
 
     if (acc_count >= MAX_ACCOUNTS) {
         send(client_fd, "Server full, cannot register new accounts.\n", 43, 0);
@@ -136,13 +143,17 @@ void handle_options(int client_fd) {
                 send(client_fd, "User not found.\n", 16, 0);
                 continue;
             }
-            send(client_fd, "Enter new password:\n", 21, 0);
-            memset(newpw, 0, sizeof(newpw));
-            recv(client_fd, newpw, sizeof(newpw) - 1, 0);
-            trim(newpw);
-            if (!check_password_format(newpw)) {
-                send(client_fd, "Please enter the new password again.\n", 37, 0);
-                continue;
+
+            while (1) {
+                send(client_fd, "Enter new password (12–20 chars, upper & lower required):\n", 61, 0);
+                memset(newpw, 0, sizeof(newpw));
+                recv(client_fd, newpw, sizeof(newpw) - 1, 0);
+                trim(newpw);
+                if (!check_new_password_format(newpw)) {
+                    send(client_fd, "Please enter the new password again.\n", 37, 0);
+                    continue;
+                }
+                break;
             }
             strcpy(accounts[idx].password, newpw);
             send(client_fd, "Password changed successfully.\n", 32, 0);

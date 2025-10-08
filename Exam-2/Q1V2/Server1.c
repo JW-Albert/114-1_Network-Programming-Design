@@ -6,12 +6,6 @@
 
 #define BUFFER_SIZE 256
 
-void trim(char *s) {
-    int len = strlen(s);
-    while (len > 0 && (s[len-1] == '\r' || s[len-1] == '\n' || s[len-1] == ' '))
-        s[--len] = 0;
-}
-
 int main() {
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
@@ -25,50 +19,60 @@ int main() {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(5678);
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+    bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     listen(server_fd, 1);
     printf("Server started on 127.0.0.1:5678 ...\n");
 
-    client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+    client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
     printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
 
     memset(recvbuf, 0, sizeof(recvbuf));
-    int len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-    if (len <= 0) { close(client_fd); close(server_fd); return 0; }
-    trim(recvbuf);
+    int len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
+    if (len <= 0) {
+        close(client_fd);
+        close(server_fd);
+        return 0;
+    }
 
     char *token = strtok(recvbuf, "|");
-    if (token) strcpy(studentID, token);
+    if (token)
+        strcpy(studentID, token);
     token = strtok(NULL, "|");
-    if (token) strcpy(username, token);
+    if (token)
+        strcpy(username, token);
     token = strtok(NULL, "|");
-    if (token) strcpy(password, token);
+    if (token)
+        strcpy(password, token);
 
-    trim(studentID); trim(username); trim(password);
     printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", studentID, username, password);
 
     send(client_fd, "Please login\n", 13, 0);
 
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
-        len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-        if (len <= 0) { close(client_fd); close(server_fd); return 0; }
-        trim(recvbuf);
+        len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
+        if (len <= 0) {
+            close(client_fd);
+            close(server_fd);
+            return 0;
+        }
 
         token = strtok(recvbuf, "|");
-        if (token) strcpy(login_user, token);
+        if (token) {
+            strcpy(login_user, token);
+        }
         token = strtok(NULL, "|");
-        if (token) strcpy(login_pass, token);
-        trim(login_user);
-        trim(login_pass);
+        if (token) {
+            strcpy(login_pass, token);
+        }
 
         if (strcmp(login_user, username) != 0) {
             send(client_fd, "Wrong ID!!!\n", 12, 0);
-            continue;  // 重新嘗試登入
+            continue; // 重新嘗試登入
         }
         if (strcmp(login_pass, password) != 0) {
             send(client_fd, "Wrong Password!!!\n", 18, 0);
-            continue;  // 重新嘗試登入
+            continue; // 重新嘗試登入
         }
 
         send(client_fd, "Login success! Start chatting.\n", 31, 0);
@@ -87,11 +91,12 @@ int main() {
 
         if (FD_ISSET(client_fd, &fds)) {
             memset(msgbuf, 0, sizeof(msgbuf));
-            int r = recv(client_fd, msgbuf, sizeof(msgbuf)-1, 0);
-            if (r <= 0) break;
+            int r = recv(client_fd, msgbuf, sizeof(msgbuf) - 1, 0);
+            if (r <= 0)
+                break;
             msgbuf[r] = '\0';
-            trim(msgbuf);
-            if (strcmp(msgbuf, "exit") == 0) break;
+            if (strcmp(msgbuf, "exit") == 0)
+                break;
             printf("[%s]: %s\n", username, msgbuf);
         }
 
@@ -100,7 +105,8 @@ int main() {
             fgets(sendbuf, sizeof(sendbuf), stdin);
             sendbuf[strcspn(sendbuf, "\n")] = 0;
             send(client_fd, sendbuf, strlen(sendbuf), 0);
-            if (strcmp(sendbuf, "exit") == 0) break;
+            if (strcmp(sendbuf, "exit") == 0)
+                break;
         }
     }
 

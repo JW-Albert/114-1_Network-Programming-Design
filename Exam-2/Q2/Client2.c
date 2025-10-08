@@ -10,9 +10,8 @@
 int main() {
     int sock;
     struct sockaddr_in server;
-    char studentID[BUFFER_SIZE], username[BUFFER_SIZE], password[BUFFER_SIZE];
+    char input[BUFFER_SIZE], sendbuf[BUFFER_SIZE], recvbuf[BUFFER_SIZE];
     char login_user[BUFFER_SIZE], login_pass[BUFFER_SIZE];
-    char sendbuf[BUFFER_SIZE], recvbuf[BUFFER_SIZE];
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     server.sin_family = AF_INET;
@@ -21,30 +20,22 @@ int main() {
     connect(sock, (struct sockaddr*)&server, sizeof(server));
     printf("Connected to server.\n");
 
-    memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
-    printf("%s", recvbuf);
-    fgets(studentID, sizeof(studentID), stdin);
-    studentID[strcspn(studentID, "\n")] = 0;
-    send(sock, studentID, strlen(studentID), 0);
+    for (int i = 0; i < 3; i++) {
+        memset(recvbuf, 0, sizeof(recvbuf));
+        recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+        printf("%s", recvbuf);
+        fgets(input, sizeof(input), stdin);
+        input[strcspn(input, "\n")] = 0;
+        send(sock, input, strlen(input), 0);
+    }
 
-    memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
-    printf("%s", recvbuf);
-    fgets(username, sizeof(username), stdin);
-    username[strcspn(username, "\n")] = 0;
-    send(sock, username, strlen(username), 0);
-
-    memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
-    printf("%s", recvbuf);
-    fgets(password, sizeof(password), stdin);
-    password[strcspn(password, "\n")] = 0;
-    send(sock, password, strlen(password), 0);
-
-    memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
-    printf("%s", recvbuf);
+    while (1) {
+        memset(recvbuf, 0, sizeof(recvbuf));
+        int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+        if (len <= 0) break;
+        printf("%s", recvbuf);
+        if (strstr(recvbuf, "註冊成功")) break;
+    }
 
     memset(recvbuf, 0, sizeof(recvbuf));
     recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
