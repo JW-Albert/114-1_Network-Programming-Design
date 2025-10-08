@@ -60,55 +60,47 @@ void register_account(int cfd, char *cmd)
 
 void login_phase(int cfd, char *cmd)
 {
-    char buf[BUFFER_SIZE];
     char u[BUFFER_SIZE];
     char p[BUFFER_SIZE];
 
-    while (1)
+    // 跳過 "LOGIN " 前綴
+    char *data = cmd;
+    if (strncmp(cmd, "LOGIN ", 6) == 0)
     {
-        memset(buf, 0, sizeof(buf));
-        int n = recv(cfd, buf, sizeof(buf) - 1, 0);
-        if (n <= 0)
-            return;
-
-        // 跳過 "LOGIN " 前綴
-        char *data = buf;
-        if (strncmp(buf, "LOGIN ", 6) == 0)
-        {
-            data = buf + 6; // 跳過 "LOGIN "
-        }
-        sscanf(data, "%[^|]|%s", u, p);
-
-        int idx = find_idx(u);
-        time_t now = time(NULL);
-
-        if (idx < 0)
-        {
-            char msg[] = "WRONG_ID";
-            send(cfd, msg, strlen(msg), 0);
-            continue;
-        }
-
-        if (now < accounts[idx].locked_until)
-        {
-            char msg[] = "LOCKED";
-            send(cfd, msg, strlen(msg), 0);
-            continue;
-        }
-
-        if (strcmp(p, accounts[idx].password) != 0)
-        {
-            char msg[] = "WRONG_PW";
-            send(cfd, msg, strlen(msg), 0);
-            accounts[idx].locked_until = now + 10;
-            continue;
-        }
-
-        char msg[] = "LOGIN_OK";
-        send(cfd, msg, strlen(msg), 0);
-        printf("登入成功: %s\n", u);
-        break;
+        data = cmd + 6; // 跳過 "LOGIN "
     }
+    sscanf(data, "%[^|]|%s", u, p);
+    trim(u);
+    trim(p);
+
+    int idx = find_idx(u);
+    time_t now = time(NULL);
+
+    if (idx < 0)
+    {
+        char msg[] = "WRONG_ID";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+
+    if (now < accounts[idx].locked_until)
+    {
+        char msg[] = "LOCKED";
+        send(cfd, msg, strlen(msg), 0);
+        return;
+    }
+
+    if (strcmp(p, accounts[idx].password) != 0)
+    {
+        char msg[] = "WRONG_PW";
+        send(cfd, msg, strlen(msg), 0);
+        accounts[idx].locked_until = now + 10;
+        return;
+    }
+
+    char msg[] = "LOGIN_OK";
+    send(cfd, msg, strlen(msg), 0);
+    printf("登入成功: %s\n", u);
 }
 
 void change_password(int cfd, char *cmd)

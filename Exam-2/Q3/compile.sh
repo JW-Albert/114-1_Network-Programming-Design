@@ -1,6 +1,7 @@
 #!/bin/bash
 
-rm -f server client
+rm server
+rm client
 
 gcc -o server Server3.c
 
