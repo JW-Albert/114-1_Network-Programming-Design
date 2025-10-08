@@ -1,7 +1,7 @@
 #!/bin/bash
 
-rm -f server_exec client
+rm -f server client
 
-gcc -o server_exec Server1.c
+gcc -o server Server1.c
 
 gcc -o client Client1.c
