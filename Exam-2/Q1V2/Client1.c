@@ -18,41 +18,43 @@ int main() {
     server.sin_port = htons(5678);
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     connect(sock, (struct sockaddr*)&server, sizeof(server));
-
     printf("Connected to server.\n");
 
     printf("Enter Student ID: ");
     fgets(studentID, sizeof(studentID), stdin);
     studentID[strcspn(studentID, "\n")] = 0;
-    send(sock, studentID, sizeof(studentID), 0);
+    send(sock, studentID, strlen(studentID), 0);
 
     printf("Create Username: ");
     fgets(username, sizeof(username), stdin);
     username[strcspn(username, "\n")] = 0;
-    send(sock, username, sizeof(username), 0);
+    send(sock, username, strlen(username), 0);
 
     do {
         printf("Create Password (6-15 chars): ");
         fgets(password, sizeof(password), stdin);
         password[strcspn(password, "\n")] = 0;
     } while (strlen(password) < 6 || strlen(password) > 15);
-    send(sock, password, sizeof(password), 0);
+    send(sock, password, strlen(password), 0);
     printf("Registration complete.\n");
 
-    recv(sock, recvbuf, sizeof(recvbuf), 0);
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
     printf("%s", recvbuf);
 
     printf("Login Username: ");
     fgets(login_user, sizeof(login_user), stdin);
     login_user[strcspn(login_user, "\n")] = 0;
-    send(sock, login_user, sizeof(login_user), 0);
+    send(sock, login_user, strlen(login_user), 0);
 
     printf("Login Password: ");
     fgets(login_pass, sizeof(login_pass), stdin);
     login_pass[strcspn(login_pass, "\n")] = 0;
-    send(sock, login_pass, sizeof(login_pass), 0);
+    send(sock, login_pass, strlen(login_pass), 0);
 
-    recv(sock, recvbuf, sizeof(recvbuf), 0);
+    memset(recvbuf, 0, sizeof(recvbuf));
+    int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+    if (len > 0) recvbuf[len] = '\0';
     printf("%s", recvbuf);
 
     if (strstr(recvbuf, "success") != NULL) {
@@ -65,7 +67,8 @@ int main() {
             select(maxfd, &fds, NULL, NULL, NULL);
 
             if (FD_ISSET(sock, &fds)) {
-                int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+                memset(recvbuf, 0, sizeof(recvbuf));
+                int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
                 if (len <= 0) break;
                 recvbuf[len] = '\0';
                 if (strcmp(recvbuf, "exit") == 0) break;
@@ -73,6 +76,7 @@ int main() {
             }
 
             if (FD_ISSET(0, &fds)) {
+                memset(sendbuf, 0, sizeof(sendbuf));
                 fgets(sendbuf, sizeof(sendbuf), stdin);
                 sendbuf[strcspn(sendbuf, "\n")] = 0;
                 send(sock, sendbuf, strlen(sendbuf), 0);

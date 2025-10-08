@@ -26,14 +26,21 @@ int main() {
     client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
     printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
 
-    recv(client_fd, studentID, sizeof(studentID), 0);
-    recv(client_fd, username, sizeof(username), 0);
-    recv(client_fd, password, sizeof(password), 0);
+    memset(studentID, 0, sizeof(studentID));
+    memset(username, 0, sizeof(username));
+    memset(password, 0, sizeof(password));
+
+    recv(client_fd, studentID, sizeof(studentID)-1, 0);
+    recv(client_fd, username, sizeof(username)-1, 0);
+    recv(client_fd, password, sizeof(password)-1, 0);
     printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", studentID, username, password);
 
     send(client_fd, "Please login\n", 13, 0);
-    recv(client_fd, login_user, sizeof(login_user), 0);
-    recv(client_fd, login_pass, sizeof(login_pass), 0);
+
+    memset(login_user, 0, sizeof(login_user));
+    memset(login_pass, 0, sizeof(login_pass));
+    recv(client_fd, login_user, sizeof(login_user)-1, 0);
+    recv(client_fd, login_pass, sizeof(login_pass)-1, 0);
 
     if (strcmp(login_user, username) != 0) {
         send(client_fd, "Wrong ID!!!\n", 12, 0);
@@ -56,12 +63,12 @@ int main() {
         FD_ZERO(&fds);
         FD_SET(0, &fds);
         FD_SET(client_fd, &fds);
-        int maxfd = client_fd > 0 ? client_fd + 1 : 1;
+        int maxfd = client_fd + 1;
         select(maxfd, &fds, NULL, NULL, NULL);
 
         if (FD_ISSET(client_fd, &fds)) {
             memset(recvbuf, 0, sizeof(recvbuf));
-            int len = recv(client_fd, recvbuf, sizeof(recvbuf), 0);
+            int len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
             if (len <= 0) break;
             recvbuf[len] = '\0';
             if (strcmp(recvbuf, "exit") == 0) break;
@@ -69,6 +76,7 @@ int main() {
         }
 
         if (FD_ISSET(0, &fds)) {
+            memset(sendbuf, 0, sizeof(sendbuf));
             fgets(sendbuf, sizeof(sendbuf), stdin);
             sendbuf[strcspn(sendbuf, "\n")] = 0;
             send(client_fd, sendbuf, strlen(sendbuf), 0);
