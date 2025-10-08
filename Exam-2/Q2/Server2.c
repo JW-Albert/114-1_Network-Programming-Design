@@ -20,7 +20,7 @@ int acc_count = 0;
 
 void trim(char *s) {
     int len = strlen(s);
-    while (len > 0 && (s[len-1] == '\r' || s[len-1] == '\n' || s[len-1] == ' '))
+    while (len > 0 && (s[len - 1] == '\r' || s[len - 1] == '\n' || s[len - 1] == ' '))
         s[--len] = 0;
 }
 
@@ -43,13 +43,22 @@ int find_account(char *username) {
 }
 
 void register_account(int client_fd) {
-    char recvbuf[BUFFER_SIZE];
-    memset(recvbuf, 0, sizeof(recvbuf));
-    recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
-
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pass[BUFFER_SIZE];
-    sscanf(recvbuf, "%[^|]|%[^|]|%s", sid, user, pass);
-    trim(sid); trim(user); trim(pass);
+    memset(sid, 0, sizeof(sid));
+    memset(user, 0, sizeof(user));
+    memset(pass, 0, sizeof(pass));
+
+    send(client_fd, "Enter Student ID:\n", 19, 0);
+    recv(client_fd, sid, sizeof(sid) - 1, 0);
+    trim(sid);
+
+    send(client_fd, "Enter Username:\n", 17, 0);
+    recv(client_fd, user, sizeof(user) - 1, 0);
+    trim(user);
+
+    send(client_fd, "Enter Password:\n", 17, 0);
+    recv(client_fd, pass, sizeof(pass) - 1, 0);
+    trim(pass);
 
     if (acc_count >= MAX_ACCOUNTS) {
         send(client_fd, "Server full, cannot register new accounts.\n", 43, 0);
@@ -77,14 +86,16 @@ void login_phase(int client_fd) {
 
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
-        recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
+        recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
         sscanf(recvbuf, "%[^|]|%s", user, pass);
-        trim(user); trim(pass);
+        trim(user);
+        trim(pass);
         int idx = find_account(user);
         now = time(NULL);
 
         if (idx < 0) {
-            send(client_fd, "Wrong ID!!!\n", 12, 0);
+            send(client_fd, "Wrong ID!!! Wait 5 seconds.\n", 28, 0);
+            sleep(5);
             continue;
         }
         if (now < accounts[idx].locked_until) {
@@ -92,8 +103,9 @@ void login_phase(int client_fd) {
             continue;
         }
         if (strcmp(accounts[idx].password, pass) != 0) {
-            send(client_fd, "Wrong Password!!!\n", 18, 0);
+            send(client_fd, "Wrong Password!!! Wait 5 seconds.\n", 34, 0);
             accounts[idx].locked_until = now + 10;
+            sleep(5);
             continue;
         }
 
@@ -104,22 +116,20 @@ void login_phase(int client_fd) {
 }
 
 void handle_options(int client_fd) {
-    char recvbuf[BUFFER_SIZE], msg[BUFFER_SIZE];
+    char recvbuf[BUFFER_SIZE];
     while (1) {
         send(client_fd, "\nSelect option:\n1. Register new account\n2. Change password\n3. Exit\n", 70, 0);
         memset(recvbuf, 0, sizeof(recvbuf));
-        int len = recv(client_fd, recvbuf, sizeof(recvbuf)-1, 0);
+        int len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
         if (len <= 0) break;
 
         if (recvbuf[0] == '1') {
-            send(client_fd, "Enter new account (StudentID|Username|Password):\n", 50, 0);
             register_account(client_fd);
-        }
-        else if (recvbuf[0] == '2') {
+        } else if (recvbuf[0] == '2') {
             char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
             send(client_fd, "Enter your username:\n", 22, 0);
             memset(user, 0, sizeof(user));
-            recv(client_fd, user, sizeof(user)-1, 0);
+            recv(client_fd, user, sizeof(user) - 1, 0);
             trim(user);
             int idx = find_account(user);
             if (idx < 0) {
@@ -128,7 +138,7 @@ void handle_options(int client_fd) {
             }
             send(client_fd, "Enter new password:\n", 21, 0);
             memset(newpw, 0, sizeof(newpw));
-            recv(client_fd, newpw, sizeof(newpw)-1, 0);
+            recv(client_fd, newpw, sizeof(newpw) - 1, 0);
             trim(newpw);
             if (!check_password_format(newpw)) {
                 send(client_fd, "Please enter the new password again.\n", 37, 0);
@@ -136,8 +146,7 @@ void handle_options(int client_fd) {
             }
             strcpy(accounts[idx].password, newpw);
             send(client_fd, "Password changed successfully.\n", 32, 0);
-        }
-        else if (recvbuf[0] == '3') break;
+        } else if (recvbuf[0] == '3') break;
     }
 }
 
@@ -162,6 +171,7 @@ int main() {
         handle_options(client_fd);
         close(client_fd);
     }
+
     close(server_fd);
     return 0;
 }

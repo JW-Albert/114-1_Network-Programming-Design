@@ -21,29 +21,33 @@ int main() {
     connect(sock, (struct sockaddr*)&server, sizeof(server));
     printf("Connected to server.\n");
 
-    printf("Enter Student ID: ");
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+    printf("%s", recvbuf);
     fgets(studentID, sizeof(studentID), stdin);
     studentID[strcspn(studentID, "\n")] = 0;
-
-    printf("Create Username: ");
-    fgets(username, sizeof(username), stdin);
-    username[strcspn(username, "\n")] = 0;
-
-    do {
-        printf("Create Password (6-15 chars): ");
-        fgets(password, sizeof(password), stdin);
-        password[strcspn(password, "\n")] = 0;
-    } while (strlen(password) < 6 || strlen(password) > 15);
-
-    snprintf(sendbuf, sizeof(sendbuf), "%s|%s|%s", studentID, username, password);
-    send(sock, sendbuf, strlen(sendbuf), 0);
+    send(sock, studentID, strlen(studentID), 0);
 
     memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+    printf("%s", recvbuf);
+    fgets(username, sizeof(username), stdin);
+    username[strcspn(username, "\n")] = 0;
+    send(sock, username, strlen(username), 0);
+
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
+    printf("%s", recvbuf);
+    fgets(password, sizeof(password), stdin);
+    password[strcspn(password, "\n")] = 0;
+    send(sock, password, strlen(password), 0);
+
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
     printf("%s", recvbuf);
 
     memset(recvbuf, 0, sizeof(recvbuf));
-    recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+    recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
     printf("%s", recvbuf);
 
     while (1) {
@@ -62,7 +66,7 @@ int main() {
 
         int ready = select(1, &fds, NULL, NULL, &tv);
         if (ready <= 0) {
-            printf("\nTimeout! You must wait 10 seconds before retry.\n");
+            printf("\nTimeout! Please wait 10 seconds before retry.\n");
             sleep(10);
             continue;
         }
@@ -74,7 +78,7 @@ int main() {
         send(sock, sendbuf, strlen(sendbuf), 0);
 
         memset(recvbuf, 0, sizeof(recvbuf));
-        int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+        int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
         if (len <= 0) break;
         printf("%s", recvbuf);
         if (strstr(recvbuf, "success")) break;
@@ -82,7 +86,7 @@ int main() {
 
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
-        int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+        int len = recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
         if (len <= 0) break;
         printf("%s", recvbuf);
         fgets(sendbuf, sizeof(sendbuf), stdin);
