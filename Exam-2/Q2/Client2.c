@@ -1,31 +1,57 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include <sys/select.h>
-#define PORT 5678
-#define BUF_SIZE 256
 
-int main(){
+#define BUFFER_SIZE 256
+
+int main() {
     int sock;
-    struct sockaddr_in serv;
-    char user[BUF_SIZE], pw[BUF_SIZE], buf[BUF_SIZE];
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    serv.sin_family = AF_INET;
-    serv.sin_port = htons(PORT);
-    serv.sin_addr.s_addr = inet_addr("127.0.0.1");
-    connect(sock, (struct sockaddr*)&serv, sizeof(serv));
+    struct sockaddr_in server;
+    char studentID[BUFFER_SIZE], username[BUFFER_SIZE], password[BUFFER_SIZE];
+    char login_user[BUFFER_SIZE], login_pass[BUFFER_SIZE];
+    char sendbuf[BUFFER_SIZE], recvbuf[BUFFER_SIZE];
 
-    memset(buf, 0, sizeof(buf));
-    recv(sock, buf, sizeof(buf) - 1, 0);
-    printf("%s", buf);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(5678);
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    connect(sock, (struct sockaddr*)&server, sizeof(server));
+    printf("Connected to server.\n");
+
+    printf("Enter Student ID: ");
+    fgets(studentID, sizeof(studentID), stdin);
+    studentID[strcspn(studentID, "\n")] = 0;
+
+    printf("Create Username: ");
+    fgets(username, sizeof(username), stdin);
+    username[strcspn(username, "\n")] = 0;
+
+    do {
+        printf("Create Password (6-15 chars): ");
+        fgets(password, sizeof(password), stdin);
+        password[strcspn(password, "\n")] = 0;
+    } while (strlen(password) < 6 || strlen(password) > 15);
+
+    snprintf(sendbuf, sizeof(sendbuf), "%s|%s|%s", studentID, username, password);
+    send(sock, sendbuf, strlen(sendbuf), 0);
+
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+    printf("%s", recvbuf);
+
+    memset(recvbuf, 0, sizeof(recvbuf));
+    recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
+    printf("%s", recvbuf);
 
     while (1) {
-        printf("Username: ");
-        fgets(user, sizeof(user), stdin);
-        user[strcspn(user, "\n")] = 0;
-        printf("Password: ");
+        printf("Login Username: ");
+        fgets(login_user, sizeof(login_user), stdin);
+        login_user[strcspn(login_user, "\n")] = 0;
+
+        printf("Login Password (5s timeout): ");
         fflush(stdout);
 
         fd_set fds;
@@ -33,33 +59,34 @@ int main(){
         FD_ZERO(&fds);
         FD_SET(0, &fds);
         tv.tv_sec = 5; tv.tv_usec = 0;
+
         int ready = select(1, &fds, NULL, NULL, &tv);
         if (ready <= 0) {
-            printf("\nTimeout! Login failed, wait 10s...\n");
+            printf("\nTimeout! You must wait 10 seconds before retry.\n");
             sleep(10);
             continue;
         }
-        fgets(pw, sizeof(pw), stdin);
-        pw[strcspn(pw, "\n")] = 0;
 
-        char sendbuf[BUF_SIZE];
-        snprintf(sendbuf, sizeof(sendbuf), "%s|%s", user, pw);
+        fgets(login_pass, sizeof(login_pass), stdin);
+        login_pass[strcspn(login_pass, "\n")] = 0;
+
+        snprintf(sendbuf, sizeof(sendbuf), "%s|%s", login_user, login_pass);
         send(sock, sendbuf, strlen(sendbuf), 0);
 
-        memset(buf, 0, sizeof(buf));
-        int len = recv(sock, buf, sizeof(buf) - 1, 0);
+        memset(recvbuf, 0, sizeof(recvbuf));
+        int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
         if (len <= 0) break;
-        printf("%s", buf);
-        if (strstr(buf, "success")) break;
+        printf("%s", recvbuf);
+        if (strstr(recvbuf, "success")) break;
     }
 
     while (1) {
-        memset(buf, 0, sizeof(buf));
-        int len = recv(sock, buf, sizeof(buf) - 1, 0);
+        memset(recvbuf, 0, sizeof(recvbuf));
+        int len = recv(sock, recvbuf, sizeof(recvbuf)-1, 0);
         if (len <= 0) break;
-        printf("%s", buf);
-        fgets(buf, sizeof(buf), stdin);
-        send(sock, buf, strlen(buf), 0);
+        printf("%s", recvbuf);
+        fgets(sendbuf, sizeof(sendbuf), stdin);
+        send(sock, sendbuf, strlen(sendbuf), 0);
     }
 
     close(sock);
