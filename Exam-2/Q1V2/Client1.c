@@ -88,7 +88,7 @@ int main()
             recvbuf[len] = '\0';
             if (strcmp(recvbuf, "exit") == 0)
                 break;
-            printf("[Server] %s\n", recvbuf);
+            printf("[Server]: %s\n", recvbuf);
         }
 
         if (FD_ISSET(0, &fds))
