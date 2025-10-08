@@ -195,7 +195,13 @@ int main()
         }
         else if (opt[0] == '2')
         {
+            char target_user[BUFFER_SIZE];
             char newpw[BUFFER_SIZE];
+
+            printf("Enter username to change password: ");
+            fgets(target_user, sizeof(target_user), stdin);
+            target_user[strcspn(target_user, "\n")] = 0;
+
             while (1)
             {
                 printf("Enter new password (12-20, upper & lower): ");
@@ -206,10 +212,16 @@ int main()
                 printf("Invalid format.\n");
             }
             char buf[BUFFER_SIZE];
-            snprintf(buf, sizeof(buf), "CHPASS %s|%s", user, newpw);
+            snprintf(buf, sizeof(buf), "CHPASS %s|%s", target_user, newpw);
             send(sock, buf, strlen(buf), 0);
             recv(sock, recvbuf, sizeof(recvbuf) - 1, 0);
-            printf("%s\n", recvbuf);
+
+            if (strstr(recvbuf, "PW_CHANGED"))
+                printf("密碼修改成功！\n");
+            else if (strstr(recvbuf, "USER_NOT_FOUND"))
+                printf("用戶不存在。\n");
+            else
+                printf("密碼修改失敗。\n");
         }
         else if (opt[0] == '3')
         {

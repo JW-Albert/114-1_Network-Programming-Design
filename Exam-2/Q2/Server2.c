@@ -6,7 +6,7 @@
 #include <time.h>
 
 #define BUFFER_SIZE 256
-#define MAX_ACCOUNTS 10
+#define MAX_ACCOUNTS 3
 
 typedef struct
 {
