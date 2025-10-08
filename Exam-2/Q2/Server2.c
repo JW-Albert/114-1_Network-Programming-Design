@@ -90,9 +90,10 @@ void register_account(int client_fd, int send_login_prompt)
     send(client_fd, msg6, strlen(msg6), 0);
     printf("%s", msg6);
 
-    if (send_login_prompt)
+    if (send_login_prompt) {
         char msg7[] = "Please login.\n";
-    send(client_fd, msg7, strlen(msg7), 0);
+        send(client_fd, msg7, strlen(msg7), 0);
+    }
 }
 
 void login_phase(int client_fd)
