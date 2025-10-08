@@ -1,89 +1,140 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <unistd.h>
-#define BUFFER_SIZE 256
+#include <arpa/inet.h>
+#include <time.h>
 
-void trim(char *s){
-    int len=strlen(s);
-    while(len>0 && (s[len-1]=='\r'||s[len-1]=='\n'||s[len-1]==' ')) s[--len]=0;
+#define PORT 5678
+#define MAX_ACC 3
+#define BUF_SIZE 256
+
+typedef struct {
+    char username[BUF_SIZE];
+    char password[BUF_SIZE];
+    time_t locked_until;
+} Account;
+
+Account accounts[MAX_ACC];
+int acc_count = 0;
+
+int find_account(char *user) {
+    for (int i = 0; i < acc_count; i++)
+        if (strcmp(accounts[i].username, user) == 0) return i;
+    return -1;
 }
 
-int main(){
-    int server_fd,client_fd;
-    struct sockaddr_in server_addr,client_addr;
-    socklen_t addr_len=sizeof(client_addr);
-    char recvbuf[BUFFER_SIZE*3],studentID[BUFFER_SIZE],username[BUFFER_SIZE],password[BUFFER_SIZE];
-    char login_user[BUFFER_SIZE],login_pass[BUFFER_SIZE],sendbuf[BUFFER_SIZE];
+int check_pw_format(char *pw) {
+    int len = strlen(pw);
+    if (len < 12 || len > 20) return 0;
+    int upper = 0, lower = 0;
+    for (int i = 0; i < len; i++) {
+        if (pw[i] >= 'A' && pw[i] <= 'Z') upper = 1;
+        if (pw[i] >= 'a' && pw[i] <= 'z') lower = 1;
+    }
+    return upper && lower;
+}
 
-    server_fd=socket(AF_INET,SOCK_STREAM,0);
-    server_addr.sin_family=AF_INET;
-    server_addr.sin_port=htons(5678);
-    server_addr.sin_addr.s_addr=INADDR_ANY;
-    bind(server_fd,(struct sockaddr*)&server_addr,sizeof(server_addr));
-    listen(server_fd,1);
-    printf("Server started on 127.0.0.1:5678 ...\n");
+void handle_client(int client_fd) {
+    char buf[BUF_SIZE];
+    char user[BUF_SIZE], pw[BUF_SIZE];
+    send(client_fd, "Please login.\n", 14, 0);
 
-    client_fd=accept(server_fd,(struct sockaddr*)&client_addr,&addr_len);
-    printf("Client connected: %s\n",inet_ntoa(client_addr.sin_addr));
+    while (1) {
+        memset(buf, 0, sizeof(buf));
+        int len = recv(client_fd, buf, sizeof(buf) - 1, 0);
+        if (len <= 0) break;
+        sscanf(buf, "%[^|]|%s", user, pw);
 
-    memset(recvbuf,0,sizeof(recvbuf));
-    recv(client_fd,recvbuf,sizeof(recvbuf)-1,0);
-    trim(recvbuf);
-    char *token=strtok(recvbuf,"|");
-    strcpy(studentID,token);
-    token=strtok(NULL,"|"); strcpy(username,token);
-    token=strtok(NULL,"|"); strcpy(password,token);
-    trim(studentID); trim(username); trim(password);
-    printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n",studentID,username,password);
-    send(client_fd,"Please login\n",13,0);
-
-    while(1){
-        memset(recvbuf,0,sizeof(recvbuf));
-        int len=recv(client_fd,recvbuf,sizeof(recvbuf)-1,0);
-        if(len<=0) break;
-        trim(recvbuf);
-        token=strtok(recvbuf,"|"); strcpy(login_user,token);
-        token=strtok(NULL,"|"); strcpy(login_pass,token);
-        trim(login_user); trim(login_pass);
-
-        if(strcmp(login_user,username)!=0){
-            send(client_fd,"Wrong ID!!!\n",12,0);
+        int idx = find_account(user);
+        time_t now = time(NULL);
+        if (idx >= 0 && now < accounts[idx].locked_until) {
+            send(client_fd, "Account locked. Try again later.\n", 33, 0);
             continue;
         }
-        if(strcmp(login_pass,password)!=0){
-            send(client_fd,"Wrong Password!!!\n",18,0);
-            continue;
+
+        if (idx >= 0 && strcmp(accounts[idx].password, pw) == 0) {
+            send(client_fd, "Login success.\n", 15, 0);
+            break;
+        } else {
+            if (idx >= 0) {
+                accounts[idx].locked_until = now + 10;
+            }
+            send(client_fd, "Wrong password.\n", 16, 0);
         }
-        send(client_fd,"Login success! Start chatting.\n",31,0);
-        printf("Client logged in successfully! (%s)\n",username);
-        break;
     }
 
-    fd_set fds; char msgbuf[BUFFER_SIZE];
-    while(1){
-        FD_ZERO(&fds);
-        FD_SET(0,&fds); FD_SET(client_fd,&fds);
-        int maxfd=client_fd+1;
-        select(maxfd,&fds,NULL,NULL,NULL);
+    while (1) {
+        char menu[] = "Select:\n1. Register new account\n2. Change password\n";
+        send(client_fd, menu, strlen(menu), 0);
+        memset(buf, 0, sizeof(buf));
+        int len = recv(client_fd, buf, sizeof(buf) - 1, 0);
+        if (len <= 0) break;
 
-        if(FD_ISSET(client_fd,&fds)){
-            memset(msgbuf,0,sizeof(msgbuf));
-            int r=recv(client_fd,msgbuf,sizeof(msgbuf)-1,0);
-            if(r<=0) break;
-            trim(msgbuf);
-            if(strcmp(msgbuf,"exit")==0) break;
-            printf("[%s]: %s\n",username,msgbuf);
-        }
-        if(FD_ISSET(0,&fds)){
-            memset(sendbuf,0,sizeof(sendbuf));
-            fgets(sendbuf,sizeof(sendbuf),stdin);
-            sendbuf[strcspn(sendbuf,"\n")]=0;
-            send(client_fd,sendbuf,strlen(sendbuf),0);
-            if(strcmp(sendbuf,"exit")==0) break;
-        }
+        if (buf[0] == '1') {
+            if (acc_count >= MAX_ACC) {
+                send(client_fd, "Full, cannot register.\n", 23, 0);
+                continue;
+            }
+            char newu[BUF_SIZE], newp[BUF_SIZE];
+            send(client_fd, "Enter new username:\n", 21, 0);
+            recv(client_fd, newu, sizeof(newu) - 1, 0);
+            newu[strcspn(newu, "\n")] = 0;
+            if (find_account(newu) >= 0) {
+                send(client_fd, "Username exists.\n", 17, 0);
+                continue;
+            }
+            send(client_fd, "Enter new password:\n", 21, 0);
+            recv(client_fd, newp, sizeof(newp) - 1, 0);
+            newp[strcspn(newp, "\n")] = 0;
+            if (!check_pw_format(newp)) {
+                send(client_fd, "Please enter the new password again.\n", 37, 0);
+                continue;
+            }
+            strcpy(accounts[acc_count].username, newu);
+            strcpy(accounts[acc_count].password, newp);
+            accounts[acc_count].locked_until = 0;
+            acc_count++;
+            send(client_fd, "Registered successfully.\n", 25, 0);
+        } else if (buf[0] == '2') {
+            char nowu[BUF_SIZE], newp[BUF_SIZE];
+            send(client_fd, "Enter your username:\n", 22, 0);
+            recv(client_fd, nowu, sizeof(nowu) - 1, 0);
+            nowu[strcspn(nowu, "\n")] = 0;
+            int idx = find_account(nowu);
+            if (idx < 0) {
+                send(client_fd, "User not found.\n", 16, 0);
+                continue;
+            }
+            send(client_fd, "Enter new password:\n", 21, 0);
+            recv(client_fd, newp, sizeof(newp) - 1, 0);
+            newp[strcspn(newp, "\n")] = 0;
+            if (!check_pw_format(newp)) {
+                send(client_fd, "Please enter the new password again.\n", 37, 0);
+                continue;
+            }
+            strcpy(accounts[idx].password, newp);
+            send(client_fd, "Password updated successfully.\n", 32, 0);
+        } else break;
     }
-    close(client_fd); close(server_fd);
+    close(client_fd);
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in serv, cli;
+    socklen_t addrlen = sizeof(cli);
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(PORT);
+    serv.sin_addr.s_addr = INADDR_ANY;
+    bind(server_fd, (struct sockaddr*)&serv, sizeof(serv));
+    listen(server_fd, 3);
+    printf("Server running on 127.0.0.1:%d ...\n", PORT);
+    while (1) {
+        client_fd = accept(server_fd, (struct sockaddr*)&cli, &addrlen);
+        handle_client(client_fd);
+    }
+    close(server_fd);
     return 0;
 }
