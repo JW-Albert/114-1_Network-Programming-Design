@@ -1,9 +1,9 @@
 #!/bin/bash
 
-rm -f server_exec client_exec
+rm -f server_exec client
 
 gcc -o server_exec Server1.c
 
-gcc -o client_exec Client1.c
+gcc -o client Client1.c
 
 clear
