@@ -82,14 +82,13 @@ void register_account(int client_fd) {
     snprintf(msg, sizeof(msg), "註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", sid, user, pass);
     send(client_fd, msg, strlen(msg), 0);
     printf("%s", msg);
+    send(client_fd, "Please login.\n", 14, 0);
 }
 
 void login_phase(int client_fd) {
     char recvbuf[BUFFER_SIZE];
     char user[BUFFER_SIZE], pass[BUFFER_SIZE];
     time_t now;
-
-    send(client_fd, "Please login.\n", 14, 0);
 
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
