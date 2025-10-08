@@ -8,7 +8,8 @@
 #define BUFFER_SIZE 256
 #define MAX_ACCOUNTS 3
 
-typedef struct {
+typedef struct
+{
     char studentID[BUFFER_SIZE];
     char username[BUFFER_SIZE];
     char password[BUFFER_SIZE];
@@ -18,12 +19,14 @@ typedef struct {
 Account accounts[MAX_ACCOUNTS];
 int acc_count = 0;
 
-int check_new_password_format(char *pw) {
+int check_new_password_format(char *pw)
+{
     int len = strlen(pw);
     if (len < 12 || len > 20)
         return 0;
     int upper = 0, lower = 0;
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++)
+    {
         if (pw[i] >= 'A' && pw[i] <= 'Z')
             upper = 1;
         if (pw[i] >= 'a' && pw[i] <= 'z')
@@ -32,41 +35,47 @@ int check_new_password_format(char *pw) {
     return upper && lower;
 }
 
-int find_account(char *username) {
+int find_account(char *username)
+{
     for (int i = 0; i < acc_count; i++)
         if (strcmp(accounts[i].username, username) == 0)
             return i;
     return -1;
 }
 
-void register_account(int client_fd, int send_login_prompt) {
+void register_account(int client_fd, int send_login_prompt)
+{
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pass[BUFFER_SIZE];
     memset(sid, 0, sizeof(sid));
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    char msg[] = "Enter Student ID: ";
-    send(client_fd, msg, strlen(msg), 0);
+    char msg1[] = "Enter Student ID: ";
+    send(client_fd, msg1, strlen(msg1), 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
 
-    char msg[] = "Enter Username: ";
-    send(client_fd, msg, strlen(msg), 0);
+    char msg2[] = "Enter Username: ";
+    send(client_fd, msg2, strlen(msg2), 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
 
-    while (1) {
-        char msg[] = "Enter Password (6–15 chars): ";
-        send(client_fd, msg, strlen(msg), 0);
+    while (1)
+    {
+        char msg3[] = "Enter Password (6–15 chars): ";
+        send(client_fd, msg3, strlen(msg3), 0);
         recv(client_fd, pass, sizeof(pass) - 1, 0);
-        if (strlen(pass) < 6 || strlen(pass) > 15) {
-            char msg[] = "Invalid password length, please try again.\n";
-            send(client_fd, msg, strlen(msg), 0);
+        if (strlen(pass) < 6 || strlen(pass) > 15)
+        {
+            char msg4[] = "Invalid password length, please try again.\n";
+            send(client_fd, msg4, strlen(msg4), 0);
             continue;
         }
         break;
     }
 
-    if (acc_count >= MAX_ACCOUNTS) {
-        send(client_fd, "Server full, cannot register new accounts.\n", 43, 0);
+    if (acc_count >= MAX_ACCOUNTS)
+    {
+        char msg5[] = "Server full, cannot register new accounts.\n";
+        send(client_fd, msg5, strlen(msg5), 0);
         return;
     }
 
@@ -76,46 +85,57 @@ void register_account(int client_fd, int send_login_prompt) {
     accounts[acc_count].locked_until = 0;
     acc_count++;
 
-    char msg[BUFFER_SIZE];
-    snprintf(msg, sizeof(msg), "註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", sid, user, pass);
-    send(client_fd, msg, strlen(msg), 0);
-    printf("%s", msg);
+    char msg6[BUFFER_SIZE];
+    snprintf(msg6, sizeof(msg6), "註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", sid, user, pass);
+    send(client_fd, msg6, strlen(msg6), 0);
+    printf("%s", msg6);
 
     if (send_login_prompt)
-        send(client_fd, "Please login.\n", 14, 0);
+        char msg7[] = "Please login.\n";
+    send(client_fd, msg7, strlen(msg7), 0);
 }
 
-void login_phase(int client_fd) {
+void login_phase(int client_fd)
+{
     char recvbuf[BUFFER_SIZE];
     char user[BUFFER_SIZE], pass[BUFFER_SIZE];
     time_t now;
 
-    send(client_fd, "Please login.\n", 14, 0);
+    char msg8[] = "Please login.\n";
+    send(client_fd, msg8, strlen(msg8), 0);
 
-    while (1) {
+    while (1)
+    {
         memset(recvbuf, 0, sizeof(recvbuf));
         recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
         sscanf(recvbuf, "%[^|]|%s", user, pass);
         int idx = find_account(user);
         now = time(NULL);
 
-        if (idx < 0) {
-            send(client_fd, "Wrong ID!!! Wait 5 seconds.\n", 28, 0);
+        if (idx < 0)
+        {
+            char msg9[] = "Wrong ID!!! Wait 5 seconds.\n";
+            send(client_fd, msg9, strlen(msg9), 0);
             sleep(5);
             continue;
         }
-        if (now < accounts[idx].locked_until) {
-            send(client_fd, "Account locked. Try again later.\n", 33, 0);
+        if (now < accounts[idx].locked_until)
+        {
+            char msg10[] = "Account locked. Try again later.\n";
+            send(client_fd, msg10, strlen(msg10), 0);
             continue;
         }
-        if (strcmp(accounts[idx].password, pass) != 0) {
-            send(client_fd, "Wrong Password!!! Wait 5 seconds.\n", 34, 0);
+        if (strcmp(accounts[idx].password, pass) != 0)
+        {
+            char msg11[] = "Wrong Password!!! Wait 5 seconds.\n";
+            send(client_fd, msg11, strlen(msg11), 0);
             accounts[idx].locked_until = now + 10;
             sleep(5);
             continue;
         }
 
-        send(client_fd, "Login success!\n", 15, 0);
+        char msg12[] = "Login success!\n";
+        send(client_fd, msg12, strlen(msg12), 0);
         printf("Client logged in successfully: %s\n", user);
         break;
     }
@@ -124,46 +144,59 @@ void login_phase(int client_fd) {
 void handle_options(int client_fd)
 {
     char recvbuf[BUFFER_SIZE];
-    while (1) {
-        send(client_fd, "\nSelect option:\n1. Register new account\n2. Change password\n3. Exit\n", 70, 0);
+    while (1)
+    {
+        char msg13[] = "\nSelect option:\n1. Register new account\n2. Change password\n3. Exit\n";
+        send(client_fd, msg13, strlen(msg13), 0);
         memset(recvbuf, 0, sizeof(recvbuf));
         int len = recv(client_fd, recvbuf, sizeof(recvbuf) - 1, 0);
         if (len <= 0)
             break;
 
-        if (recvbuf[0] == '1') {
+        if (recvbuf[0] == '1')
+        {
             register_account(client_fd, 0);
-        } else if (recvbuf[0] == '2') {
+        }
+        else if (recvbuf[0] == '2')
+        {
             char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
-            send(client_fd, "Enter your username: ", 22, 0);
+            char msg14[] = "Enter your username: ";
+            send(client_fd, msg14, strlen(msg14), 0);
             memset(user, 0, sizeof(user));
             recv(client_fd, user, sizeof(user) - 1, 0);
             int idx = find_account(user);
-            if (idx < 0) {
-                send(client_fd, "User not found.\n", 16, 0);
+            if (idx < 0)
+            {
+                char msg15[] = "User not found.\n";
+                send(client_fd, msg15, strlen(msg15), 0);
                 continue;
             }
 
-            while (1) {
-                send(client_fd, "Enter new password (12–20 chars, upper & lower required): ", 61, 0);
+            while (1)
+            {
+                char msg16[] = "Enter new password (12–20 chars, upper & lower required): ";
+                send(client_fd, msg16, strlen(msg16), 0);
                 memset(newpw, 0, sizeof(newpw));
                 recv(client_fd, newpw, sizeof(newpw) - 1, 0);
                 if (!check_new_password_format(newpw))
                 {
-                    send(client_fd, "Please enter the new password again.\n", 37, 0);
+                    char msg17[] = "Please enter the new password again.\n";
+                    send(client_fd, msg17, strlen(msg17), 0);
                     continue;
                 }
                 break;
             }
             strcpy(accounts[idx].password, newpw);
-            send(client_fd, "Password changed successfully.\n", 32, 0);
+            char msg18[] = "Password changed successfully.\n";
+            send(client_fd, msg18, strlen(msg18), 0);
         }
         else if (recvbuf[0] == '3')
             break;
     }
 }
 
-int main() {
+int main()
+{
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);

@@ -46,8 +46,8 @@ int main() {
 
     printf("註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", studentID, username, password);
 
-    char msg[] = "Please login\n";
-    send(client_fd, msg, strlen(msg), 0);
+    char msg1[] = "Please login\n";
+    send(client_fd, msg1, strlen(msg1), 0);
 
     while (1) {
         memset(recvbuf, 0, sizeof(recvbuf));
@@ -68,18 +68,18 @@ int main() {
         }
 
         if (strcmp(login_user, username) != 0) {
-            char msg[] = "Wrong ID!!!\n";
-            send(client_fd, msg, strlen(msg), 0);
+            char msg2[] = "Wrong ID!!!\n";
+            send(client_fd, msg2, strlen(msg2), 0);
             continue; // 重新嘗試登入
         }
         if (strcmp(login_pass, password) != 0) {
-            char msg[] = "Wrong Password!!!\n";
-            send(client_fd, msg, strlen(msg), 0);
+            char msg3[] = "Wrong Password!!!\n";
+            send(client_fd, msg3, strlen(msg3), 0);
             continue; // 重新嘗試登入
         }
 
-        char msg[] = "Login success! Start chatting.\n";
-        send(client_fd, msg, strlen(msg), 0);
+        char msg4[] = "Login success! Start chatting.\n";
+        send(client_fd, msg4, strlen(msg4), 0);
         printf("Client logged in successfully! (%s)\n", username);
         break;
     }
