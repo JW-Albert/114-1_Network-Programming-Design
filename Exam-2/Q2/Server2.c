@@ -42,22 +42,22 @@ int find_account(char *username) {
     return -1;
 }
 
-void register_account(int client_fd) {
+void register_account(int client_fd, int send_login_prompt) {
     char sid[BUFFER_SIZE], user[BUFFER_SIZE], pass[BUFFER_SIZE];
     memset(sid, 0, sizeof(sid));
     memset(user, 0, sizeof(user));
     memset(pass, 0, sizeof(pass));
 
-    send(client_fd, "Enter Student ID:", 19, 0);
+    send(client_fd, "Enter Student ID:\n", 19, 0);
     recv(client_fd, sid, sizeof(sid) - 1, 0);
     trim(sid);
 
-    send(client_fd, "Enter Username:", 17, 0);
+    send(client_fd, "Enter Username:\n", 17, 0);
     recv(client_fd, user, sizeof(user) - 1, 0);
     trim(user);
 
     while (1) {
-        send(client_fd, "Enter Password (6–15 chars):", 30, 0);
+        send(client_fd, "Enter Password (6–15 chars):\n", 30, 0);
         recv(client_fd, pass, sizeof(pass) - 1, 0);
         trim(pass);
         if (strlen(pass) < 6 || strlen(pass) > 15) {
@@ -82,8 +82,11 @@ void register_account(int client_fd) {
     snprintf(msg, sizeof(msg), "註冊成功: 學號=%s, 帳號=%s, 密碼=%s\n", sid, user, pass);
     send(client_fd, msg, strlen(msg), 0);
     printf("%s", msg);
-    send(client_fd, "Please login.\n", 14, 0);
+
+    if (send_login_prompt)
+        send(client_fd, "Please login.\n", 14, 0);
 }
+
 
 void login_phase(int client_fd) {
     char recvbuf[BUFFER_SIZE];
@@ -132,7 +135,7 @@ void handle_options(int client_fd) {
         if (len <= 0) break;
 
         if (recvbuf[0] == '1') {
-            register_account(client_fd);
+            register_account(client_fd, 0);
         } else if (recvbuf[0] == '2') {
             char user[BUFFER_SIZE], newpw[BUFFER_SIZE];
             send(client_fd, "Enter your username:\n", 22, 0);
@@ -178,7 +181,7 @@ int main() {
     while (1) {
         client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
         printf("Client connected: %s\n", inet_ntoa(client_addr.sin_addr));
-        register_account(client_fd);
+        register_account(client_fd, 1);
         login_phase(client_fd);
         handle_options(client_fd);
         close(client_fd);
