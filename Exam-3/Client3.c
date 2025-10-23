@@ -34,7 +34,7 @@ int main(){
         perror("connect");return 1;
     }
     pthread_create(&tid,NULL,recv_handler,NULL);
-    printf("Commands:\nMSG <text>\nCREATE <room> <id1> <id2>\nJOIN <room>\nMOVE <room>\nExit\n");
+    printf("Commands:\nMSG <text>\nCREATE <room> <id1> <id2>\nJOIN <room>\nMOVE <room>\nLEAVE\nExit\n");
     char input[BUFFER_SIZE];
     while(1){
         memset(input,0,sizeof(input));

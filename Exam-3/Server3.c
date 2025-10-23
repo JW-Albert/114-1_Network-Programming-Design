@@ -18,14 +18,13 @@ typedef struct{
 }Room;
 
 int client_sockets[MAX_CLIENTS];
-char client_names[MAX_CLIENTS][20];
-Room rooms[MAX_ROOMS];
 pthread_mutex_t lock;
+Room rooms[MAX_ROOMS];
 
-void broadcast_all(const char *msg){
-    for(int i=0;i<MAX_CLIENTS;i++)
-        if(client_sockets[i]!=0)
-            send(client_sockets[i],msg,strlen(msg),0);
+Room* find_room(const char *name){
+    for(int i=0;i<MAX_ROOMS;i++)
+        if(strcmp(rooms[i].roomName,name)==0)return &rooms[i];
+    return NULL;
 }
 
 void broadcast_room(Room *r,const char *msg){
@@ -33,10 +32,10 @@ void broadcast_room(Room *r,const char *msg){
         send(r->sockets[i],msg,strlen(msg),0);
 }
 
-Room* find_room(const char *name){
-    for(int i=0;i<MAX_ROOMS;i++)
-        if(strcmp(rooms[i].roomName,name)==0)return &rooms[i];
-    return NULL;
+void broadcast_all(const char *msg){
+    for(int i=0;i<MAX_CLIENTS;i++)
+        if(client_sockets[i]!=0)
+            send(client_sockets[i],msg,strlen(msg),0);
 }
 
 void remove_from_room(Room *r,int sock){
@@ -51,23 +50,30 @@ void remove_from_room(Room *r,int sock){
         }
 }
 
+Room* find_room_by_sock(int sock){
+    for(int i=0;i<MAX_ROOMS;i++)
+        for(int j=0;j<rooms[i].count;j++)
+            if(rooms[i].sockets[j]==sock)return &rooms[i];
+    return NULL;
+}
+
 void *client_handler(void *arg){
     int sock=*(int*)arg,idx=-1;
     char buf[BUFFER_SIZE];
-    Room *current=find_room("Lobby");
     pthread_mutex_lock(&lock);
     for(int i=0;i<MAX_CLIENTS;i++)
         if(client_sockets[i]==sock)idx=i;
-    if(!current){
+    Room *lobby=find_room("Lobby");
+    if(!lobby){
         for(int i=0;i<MAX_ROOMS;i++)
-            if(rooms[i].count==0){strcpy(rooms[i].roomName,"Lobby");current=&rooms[i];break;}
+            if(rooms[i].count==0){strcpy(rooms[i].roomName,"Lobby");lobby=&rooms[i];break;}
     }
-    current->sockets[current->count]=sock;
-    sprintf(current->names[current->count],"%d",idx+1);
-    current->count++;
+    lobby->sockets[lobby->count]=sock;
+    sprintf(lobby->names[lobby->count],"%d",idx+1);
+    lobby->count++;
     pthread_mutex_unlock(&lock);
     sprintf(buf,"[Server]: Client%d joined Lobby.\n",idx+1);
-    broadcast_room(current,buf);
+    broadcast_room(lobby,buf);
     while(1){
         memset(buf,0,sizeof(buf));
         int len=recv(sock,buf,sizeof(buf)-1,0);
@@ -82,8 +88,12 @@ void *client_handler(void *arg){
                 for(int i=0;i<MAX_ROOMS;i++)
                     if(rooms[i].count==0){strcpy(rooms[i].roomName,roomName);r=&rooms[i];break;}
             }
+            if(!r){pthread_mutex_unlock(&lock);send(sock,"Room full!\n",11,0);continue;}
+            remove_from_room(lobby,sock);
+            r->sockets[r->count]=sock;
+            sprintf(r->names[r->count],"%d",idx+1);
+            r->count++;
             pthread_mutex_unlock(&lock);
-            if(!r){send(sock,"Room full!\n",11,0);continue;}
             char msg[BUFFER_SIZE];
             sprintf(msg,"[Server]: You invited Client%d and Client%d to %s.\n",t1,t2,roomName);
             send(sock,msg,strlen(msg),0);
@@ -99,6 +109,8 @@ void *client_handler(void *arg){
             if(!r){send(sock,"invalid room!\n",14,0);continue;}
             if(r->count>=3){send(sock,"room full!\n",11,0);continue;}
             pthread_mutex_lock(&lock);
+            Room *cur=find_room_by_sock(sock);
+            if(cur)remove_from_room(cur,sock);
             r->sockets[r->count]=sock;
             sprintf(r->names[r->count],"%d",idx+1);
             r->count++;
@@ -109,21 +121,37 @@ void *client_handler(void *arg){
         }else if(strncmp(buf,"MSG ",4)==0){
             char msg[BUFFER_SIZE];
             sprintf(msg,"[Client%d]: %s\n",idx+1,buf+4);
-            broadcast_room(current,msg);
+            Room *r=find_room_by_sock(sock);
+            if(r)broadcast_room(r,msg);
         }else if(strncmp(buf,"MOVE ",5)==0){
             char roomName[20];sscanf(buf+5,"%s",roomName);
             Room *r=find_room(roomName);
             if(!r){send(sock,"invalid room!\n",14,0);continue;}
             pthread_mutex_lock(&lock);
-            remove_from_room(current,sock);
+            Room *cur=find_room_by_sock(sock);
+            if(cur)remove_from_room(cur,sock);
             r->sockets[r->count]=sock;
             sprintf(r->names[r->count],"%d",idx+1);
             r->count++;
-            current=r;
             pthread_mutex_unlock(&lock);
             char msg[BUFFER_SIZE];
             sprintf(msg,"[Server]: Client%d moved to %s.\n",idx+1,roomName);
             broadcast_room(r,msg);
+        }else if(strcmp(buf,"LEAVE")==0){
+            pthread_mutex_lock(&lock);
+            Room *cur=find_room_by_sock(sock);
+            if(cur)remove_from_room(cur,sock);
+            Room *l=find_room("Lobby");
+            if(!l){
+                for(int i=0;i<MAX_ROOMS;i++)
+                    if(rooms[i].count==0){strcpy(rooms[i].roomName,"Lobby");l=&rooms[i];break;}
+            }
+            l->sockets[l->count]=sock;
+            sprintf(l->names[l->count],"%d",idx+1);
+            l->count++;
+            pthread_mutex_unlock(&lock);
+            sprintf(buf,"[Server]: Client%d returned to Lobby.\n",idx+1);
+            broadcast_room(l,buf);
         }else if(strcmp(buf,"Exit")==0){
             sprintf(buf,"[Server]: Client%d disconnected.\n",idx+1);
             broadcast_all(buf);
