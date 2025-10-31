@@ -1,3 +1,5 @@
 #!/bin/bash
 
-java Server
+clear
+
+java src/Server

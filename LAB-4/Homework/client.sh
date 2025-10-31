@@ -1,3 +1,5 @@
 #!/bin/bash
 
-java Client
+clear
+
+java src/Client

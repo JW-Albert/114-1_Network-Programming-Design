@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -f Server Client
+rm -f src/Server src/Client
 
-javac Server.java
-javac Client.java
+javac src/Server.java
+javac src/Client.java
